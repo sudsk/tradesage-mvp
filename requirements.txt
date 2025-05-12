@@ -1,0 +1,8 @@
+yfinance==0.2.33
+sec-api==1.0.17
+google-cloud-secret-manager>=2.16.0
+fastapi>=0.68.0
+uvicorn>=0.15.0
+requests>=2.26.0
+pandas>=1.3.0
+numpy>=1.21.0
