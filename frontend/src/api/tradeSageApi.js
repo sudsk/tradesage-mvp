@@ -44,6 +44,61 @@ class TradeSageAPI {
     });
   }
   
+  // New dashboard endpoints
+  async getDashboardData() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/dashboard`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      throw error;
+    }
+  }
+  
+  async getHypothesisDetail(hypothesisId) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/hypothesis/${hypothesisId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching hypothesis detail:', error);
+      throw error;
+    }
+  }
+  
+  async getAlerts() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      throw error;
+    }
+  }
+  
+  async markAlertAsRead(alertId) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}/read`, {
+        method: 'PATCH',
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error marking alert as read:', error);
+      throw error;
+    }
+  }
+  
   async healthCheck() {
     try {
       const response = await fetch(`${API_BASE_URL}/health`);
