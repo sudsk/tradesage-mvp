@@ -5,7 +5,7 @@ from vertexai.generative_models import GenerationConfig
 AGENT_NAME = "research_agent"
 AGENT_DESCRIPTION = "Conducts market research and data gathering"
 
-MODEL_NAME = "gemini-1.5-pro"
+MODEL_NAME = "gemini-2.0-flash"
 GENERATION_CONFIG = GenerationConfig(
     temperature=0.1,  # Lower temperature for factual responses
     top_p=0.95,
