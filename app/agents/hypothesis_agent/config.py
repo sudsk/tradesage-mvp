@@ -5,7 +5,7 @@ from vertexai.generative_models import GenerationConfig
 AGENT_NAME = "hypothesis_agent"
 AGENT_DESCRIPTION = "Generates, refines, and structures trading hypotheses"
 
-MODEL_NAME = "gemini-1.5-pro"
+MODEL_NAME = "gemini-2.0-flash"
 GENERATION_CONFIG = GenerationConfig(
     temperature=0.2,
     top_p=0.95,
