@@ -1,6 +1,6 @@
 # app/agents/research_agent/config.py
 import vertexai
-from vertexai.genai import GenerationConfig
+from vertexai.generative_models import GenerationConfig
 
 AGENT_NAME = "research_agent"
 AGENT_DESCRIPTION = "Conducts market research and data gathering"
