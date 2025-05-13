@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import TradeSageAPI from '../api/tradeSageApi';
 
-const TradingDashboard = () => {
+const ImprovedTradingDashboard = () => {
   const [hypotheses, setHypotheses] = useState([]);
   const [selectedHypothesis, setSelectedHypothesis] = useState(null);
   const [activeTab, setActiveTab] = useState('analysis');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch real data from API
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -35,31 +33,12 @@ const TradingDashboard = () => {
     }
   };
 
-  const selectHypothesis = async (hypothesis) => {
-    try {
-      // Optionally fetch more detailed data for the selected hypothesis
-      const response = await TradeSageAPI.getHypothesisDetail(hypothesis.id);
-      if (response.status === 'success') {
-        // Update the hypothesis with more detailed data if needed
-        setSelectedHypothesis({
-          ...hypothesis,
-          ...response.data
-        });
-      } else {
-        setSelectedHypothesis(hypothesis);
-      }
-    } catch (err) {
-      console.error('Error fetching hypothesis detail:', err);
-      setSelectedHypothesis(hypothesis);
-    }
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading dashboard...</p>
+          <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading TradeSage Dashboard...</p>
         </div>
       </div>
     );
@@ -67,14 +46,15 @@ const TradingDashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg text-red-600 mb-4">{error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <p className="text-xl text-red-600 mb-4 font-semibold">{error}</p>
           <button 
             onClick={fetchDashboardData}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-semibold"
           >
-            Retry
+            Try Again
           </button>
         </div>
       </div>
@@ -83,19 +63,26 @@ const TradingDashboard = () => {
 
   if (!hypotheses || hypotheses.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg text-gray-600">No hypotheses found</p>
-          <p className="text-sm text-gray-500 mt-2">Initialize the database with sample data to get started</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-100 flex items-center justify-center">
+        <div className="text-center bg-white p-12 rounded-lg shadow-lg">
+          <div className="text-6xl mb-4">📊</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">No Hypotheses Found</h2>
+          <p className="text-gray-600 mb-6">Initialize the database with sample data to get started</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-semibold"
+          >
+            Refresh Dashboard
+          </button>
         </div>
       </div>
     );
   }
 
   const getStatusColor = (status) => {
-    if (status.toLowerCase().includes('schedule')) return 'text-green-600 bg-green-50';
-    if (status.toLowerCase().includes('demand')) return 'text-blue-600 bg-blue-50';
-    return 'text-gray-600 bg-gray-50';
+    if (status.toLowerCase().includes('schedule')) return 'bg-green-100 text-green-800 border-green-200';
+    if (status.toLowerCase().includes('demand')) return 'bg-blue-100 text-blue-800 border-blue-200';
+    return 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   const getConfidenceColor = (confidence) => {
@@ -104,70 +91,96 @@ const TradingDashboard = () => {
     return 'bg-red-500';
   };
 
-  const pieData = selectedHypothesis ? [
-    { name: 'Contradictions', value: selectedHypothesis.contradictions, color: '#EF4444' },
-    { name: 'Confirmations', value: selectedHypothesis.confirmations, color: '#10B981' }
-  ] : [];
-
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">TradeSage Trading Dashboard</h1>
-          <p className="text-gray-600 mt-2">Multi-agent contradiction analysis for trading hypotheses</p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container mx-auto px-6 py-8">
+        {/* Header */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border border-blue-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                TradeSage AI Dashboard
+              </h1>
+              <p className="text-gray-600 mt-2 text-lg">Multi-agent contradiction analysis for trading hypotheses</p>
+            </div>
+            <div className="hidden md:flex items-center space-x-4">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-gray-800">{hypotheses.length}</div>
+                <div className="text-sm text-gray-500">Active Hypotheses</div>
+              </div>
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span className="text-white text-xl">📈</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Hypothesis Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
           {hypotheses.map((hyp) => (
             <div
               key={hyp.id}
-              className={`bg-white rounded-lg shadow-md p-6 cursor-pointer transition-all duration-200 ${
-                selectedHypothesis?.id === hyp.id ? 'ring-2 ring-blue-500' : 'hover:shadow-lg'
+              className={`bg-white rounded-xl shadow-lg p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl border-2 ${
+                selectedHypothesis?.id === hyp.id 
+                  ? 'border-blue-500 shadow-blue-100' 
+                  : 'border-gray-100 hover:border-blue-200'
               }`}
-              onClick={() => selectHypothesis(hyp)}
+              onClick={() => setSelectedHypothesis(hyp)}
             >
-              <h3 className="font-semibold text-lg mb-3 text-gray-800">{hyp.title}</h3>
-              
-              {/* Mini Chart */}
-              <div className="h-32 mb-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={hyp.trendData || []}>
-                    <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} dot={false} />
-                    <Tooltip formatter={(value) => [`${value}`, 'Price']} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Contradictions/Confirmations Summary */}
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center space-x-4">
-                  <span className="text-red-600 flex items-center">
-                    <span className="text-xl">✗</span>
-                    <span className="ml-1 font-semibold">{hyp.contradictions}</span>
-                  </span>
-                  <span className="text-green-600 flex items-center">
-                    <span className="text-xl">✓</span>
-                    <span className="ml-1 font-semibold">{hyp.confirmations}</span>
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  <div className={`h-2 w-16 rounded-full bg-gray-200 overflow-hidden`}>
-                    <div
-                      className={`h-full ${getConfidenceColor(hyp.confidence)}`}
-                      style={{ width: `${hyp.confidence}%` }}
-                    />
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">{hyp.confidence}%</span>
-                </div>
-              </div>
-
-              {/* Status and Last Updated */}
-              <div className="flex justify-between items-center">
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(hyp.status)}`}>
+              {/* Card Header */}
+              <div className="mb-4">
+                <h3 className="font-bold text-xl text-gray-800 leading-tight mb-2">{hyp.title}</h3>
+                <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(hyp.status)}`}>
+                  <div className="w-2 h-2 rounded-full bg-current mr-2"></div>
                   {hyp.status}
-                </span>
-                <span className="text-xs text-gray-500">As of {hyp.lastUpdated}</span>
+                </div>
+              </div>
+
+              {/* Metrics Row */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-red-500">{hyp.contradictions}</div>
+                  <div className="text-xs text-gray-500">Contradictions</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-500">{hyp.confirmations}</div>
+                  <div className="text-xs text-gray-500">Confirmations</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-500">{hyp.confidence}%</div>
+                  <div className="text-xs text-gray-500">Confidence</div>
+                </div>
+              </div>
+
+              {/* Confidence Bar */}
+              <div className="mb-4">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-600">Confidence Score</span>
+                  <span className="font-semibold">{hyp.confidence}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${getConfidenceColor(hyp.confidence)}`}
+                    style={{ width: `${hyp.confidence}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Price Info */}
+              {hyp.trendData && hyp.trendData.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Current Price</span>
+                    <span className="text-lg font-bold text-gray-800">
+                      ${hyp.trendData[hyp.trendData.length - 1]?.value || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Last Updated */}
+              <div className="text-xs text-gray-500 text-right">
+                Updated {hyp.lastUpdated}
               </div>
             </div>
           ))}
@@ -175,163 +188,190 @@ const TradingDashboard = () => {
 
         {/* Detailed Analysis Panel */}
         {selectedHypothesis && (
-          <div className="bg-white rounded-lg shadow-md">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100">
+            {/* Tab Navigation */}
             <div className="border-b border-gray-200">
-              <nav className="flex space-x-8">
+              <nav className="flex">
                 <button
-                  className={`py-4 px-6 text-sm font-medium ${
-                    activeTab === 'analysis' 
-                      ? 'border-b-2 border-blue-500 text-blue-600' 
-                      : 'text-gray-500 hover:text-gray-700'
+                  className={`px-8 py-4 text-sm font-semibold transition-colors ${
+                    activeTab === 'analysis'
+                      ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                   onClick={() => setActiveTab('analysis')}
                 >
-                  Analysis Breakdown
+                  <span className="flex items-center">
+                    📊 Analysis Breakdown
+                  </span>
                 </button>
                 <button
-                  className={`py-4 px-6 text-sm font-medium ${
-                    activeTab === 'trends' 
-                      ? 'border-b-2 border-blue-500 text-blue-600' 
-                      : 'text-gray-500 hover:text-gray-700'
+                  className={`px-8 py-4 text-sm font-semibold transition-colors ${
+                    activeTab === 'trends'
+                      ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                   }`}
                   onClick={() => setActiveTab('trends')}
                 >
-                  Trends & Charts
+                  <span className="flex items-center">
+                    📈 Trends & Insights
+                  </span>
                 </button>
               </nav>
             </div>
 
-            <div className="p-6">
-              {activeTab === 'analysis' && (
+            {/* Tab Content */}
+            <div className="p-8">
+              {activeTab === 'analysis' ? (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6">{selectedHypothesis.title}</h2>
+                  <h2 className="text-3xl font-bold text-gray-800 mb-6">{selectedHypothesis.title}</h2>
                   
-                  {/* Summary Stats */}
+                  {/* Summary Stats Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-red-50 p-4 rounded-lg">
-                      <div className="text-red-700 text-sm font-medium">Contradictions Found</div>
-                      <div className="text-3xl font-bold text-red-600 mt-1">{selectedHypothesis.contradictions}</div>
+                    <div className="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-lg border border-red-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-red-700 text-sm font-semibold">Contradictions Found</div>
+                          <div className="text-3xl font-bold text-red-600 mt-1">{selectedHypothesis.contradictions}</div>
+                        </div>
+                        <div className="text-red-500 text-3xl">❌</div>
+                      </div>
                     </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="text-green-700 text-sm font-medium">Confirmations Found</div>
-                      <div className="text-3xl font-bold text-green-600 mt-1">{selectedHypothesis.confirmations}</div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border border-green-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-green-700 text-sm font-semibold">Confirmations Found</div>
+                          <div className="text-3xl font-bold text-green-600 mt-1">{selectedHypothesis.confirmations}</div>
+                        </div>
+                        <div className="text-green-500 text-3xl">✅</div>
+                      </div>
                     </div>
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="text-blue-700 text-sm font-medium">Confidence Score</div>
-                      <div className="text-3xl font-bold text-blue-600 mt-1">{selectedHypothesis.confidence}%</div>
-                    </div>
-                  </div>
-
-                  {/* Pie Chart */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4">Evidence Distribution</h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            dataKey="value"
-                            label={({ name, value }) => `${name}: ${value}`}
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-blue-700 text-sm font-semibold">Confidence Score</div>
+                          <div className="text-3xl font-bold text-blue-600 mt-1">{selectedHypothesis.confidence}%</div>
+                        </div>
+                        <div className="text-blue-500 text-3xl">🎯</div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Detailed Analysis */}
+                  {/* Evidence Details */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Contradictions Section */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-red-700 mb-4">
-                        {selectedHypothesis.contradictions} Contradictions Found
+                    <div className="bg-red-50 rounded-lg p-6 border border-red-200">
+                      <h3 className="text-xl font-bold text-red-700 mb-4 flex items-center">
+                        <span className="mr-2">❌</span>
+                        {selectedHypothesis.contradictions} Contradictions
                       </h3>
-                      {selectedHypothesis.contradictions_detail?.map((item, index) => (
-                        <div key={index} className="border-l-4 border-red-500 bg-red-50 p-4 mb-4">
-                          <p className="text-gray-800 mb-2 italic">"{item.quote}"</p>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <strong>Reason:</strong> {item.reason}
-                          </p>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500">{item.source}</span>
-                            <span className={`px-2 py-1 rounded ${
-                              item.strength === 'Strong' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
-                            }`}>
-                              {item.strength}
-                            </span>
+                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {selectedHypothesis.contradictions_detail?.slice(0, 5).map((item, index) => (
+                          <div key={index} className="bg-white rounded-lg p-4 border-l-4 border-red-500">
+                            <p className="text-gray-800 mb-2 italic text-sm">"{item.quote}"</p>
+                            <p className="text-xs text-gray-600 mb-2">
+                              <strong>Reason:</strong> {item.reason}
+                            </p>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500 truncate mr-2">{item.source}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                item.strength === 'Strong' 
+                                  ? 'bg-red-100 text-red-800' 
+                                  : 'bg-orange-100 text-orange-800'
+                              }`}>
+                                {item.strength}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                        {selectedHypothesis.contradictions > 5 && (
+                          <div className="text-center text-red-600 text-sm font-semibold">
+                            + {selectedHypothesis.contradictions - 5} more contradictions
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Confirmations Section */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-green-700 mb-4">
-                        {selectedHypothesis.confirmations} Confirmations Found
+                    <div className="bg-green-50 rounded-lg p-6 border border-green-200">
+                      <h3 className="text-xl font-bold text-green-700 mb-4 flex items-center">
+                        <span className="mr-2">✅</span>
+                        {selectedHypothesis.confirmations} Confirmations
                       </h3>
-                      {selectedHypothesis.confirmations_detail?.map((item, index) => (
-                        <div key={index} className="border-l-4 border-green-500 bg-green-50 p-4 mb-4">
-                          <p className="text-gray-800 mb-2 italic">"{item.quote}"</p>
-                          <p className="text-sm text-gray-600 mb-2">
-                            <strong>Reason:</strong> {item.reason}
-                          </p>
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-500">{item.source}</span>
-                            <span className={`px-2 py-1 rounded ${
-                              item.strength === 'Strong' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'
-                            }`}>
-                              {item.strength}
-                            </span>
+                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {selectedHypothesis.confirmations_detail?.slice(0, 5).map((item, index) => (
+                          <div key={index} className="bg-white rounded-lg p-4 border-l-4 border-green-500">
+                            <p className="text-gray-800 mb-2 italic text-sm">"{item.quote}"</p>
+                            <p className="text-xs text-gray-600 mb-2">
+                              <strong>Reason:</strong> {item.reason}
+                            </p>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500 truncate mr-2">{item.source}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                item.strength === 'Strong'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {item.strength}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                        {selectedHypothesis.confirmations > 5 && (
+                          <div className="text-center text-green-600 text-sm font-semibold">
+                            + {selectedHypothesis.confirmations - 5} more confirmations
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
-
-              {activeTab === 'trends' && (
+              ) : (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6">Price Trends & Metrics</h2>
+                  <h2 className="text-3xl font-bold text-gray-800 mb-6">Price Trends & Market Insights</h2>
                   
-                  {/* Large Trend Chart */}
-                  <div className="h-96 mb-8">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={selectedHypothesis.trendData || []}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip formatter={(value) => [`${value}`, 'Price']} />
-                        <Line type="monotone" dataKey="value" stroke="#2563EB" strokeWidth={3} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {/* Price Metrics Grid */}
+                  {selectedHypothesis.trendData && selectedHypothesis.trendData.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg">
+                        <div className="text-blue-700 text-sm font-semibold">Current Price</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          ${selectedHypothesis.trendData[selectedHypothesis.trendData.length - 1]?.value}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg">
+                        <div className="text-green-700 text-sm font-semibold">Week High</div>
+                        <div className="text-2xl font-bold text-green-600">
+                          ${Math.max(...selectedHypothesis.trendData.map(d => d.value))}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-lg">
+                        <div className="text-orange-700 text-sm font-semibold">Week Low</div>
+                        <div className="text-2xl font-bold text-orange-600">
+                          ${Math.min(...selectedHypothesis.trendData.map(d => d.value))}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-lg">
+                        <div className="text-purple-700 text-sm font-semibold">Target Price</div>
+                        <div className="text-2xl font-bold text-purple-600">$85.00</div>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Key Metrics */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600">Current Price</div>
-                      <div className="text-xl font-bold">${selectedHypothesis.trendData && selectedHypothesis.trendData.length > 0 ? selectedHypothesis.trendData[selectedHypothesis.trendData.length - 1]?.value : 'N/A'}</div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600">Week High</div>
-                      <div className="text-xl font-bold">${selectedHypothesis.trendData && selectedHypothesis.trendData.length > 0 ? Math.max(...selectedHypothesis.trendData.map(d => d.value)) : 'N/A'}</div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600">Week Low</div>
-                      <div className="text-xl font-bold">${selectedHypothesis.trendData && selectedHypothesis.trendData.length > 0 ? Math.min(...selectedHypothesis.trendData.map(d => d.value)) : 'N/A'}</div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm text-gray-600">Target Price</div>
-                      <div className="text-xl font-bold text-blue-600">$85.00</div>
-                    </div>
+                  {/* Simple Price History Display */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Price History</h3>
+                    {selectedHypothesis.trendData && selectedHypothesis.trendData.length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedHypothesis.trendData.slice(-7).map((point, index) => (
+                          <div key={index} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
+                            <span className="text-gray-600">{point.date}</span>
+                            <span className="font-semibold text-lg">${point.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-center py-8">No price history available</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -343,4 +383,4 @@ const TradingDashboard = () => {
   );
 };
 
-export default TradingDashboard;
+export default ImprovedTradingDashboard;
