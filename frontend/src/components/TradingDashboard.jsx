@@ -1,14 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import TradeSageAPI from '../api/tradeSageApi';
 
 const TradingDashboard = () => {
   const [hypotheses, setHypotheses] = useState([]);
   const [selectedHypothesis, setSelectedHypothesis] = useState(null);
   const [activeTab, setActiveTab] = useState('analysis');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock data - replace with API calls
+  // Fetch real data from API
   useEffect(() => {
-    const mockHypotheses = [
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const response = await TradeSageAPI.getDashboardData();
+      
+      if (response.status === 'success') {
+        setHypotheses(response.data);
+        if (response.data.length > 0) {
+          setSelectedHypothesis(response.data[0]);
+        }
+      } else {
+        setError('Failed to fetch dashboard data');
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Error loading dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectHypothesis = async (hypothesis) => {
+    try {
+      // Optionally fetch more detailed data for the selected hypothesis
+      const response = await TradeSageAPI.getHypothesisDetail(hypothesis.id);
+      if (response.status === 'success') {
+        // Update the hypothesis with more detailed data if needed
+        setSelectedHypothesis({
+          ...hypothesis,
+          ...response.data
+        });
+      } else {
+        setSelectedHypothesis(hypothesis);
+      }
+    } catch (err) {
+      console.error('Error fetching hypothesis detail:', err);
+      setSelectedHypothesis(hypothesis);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hypotheses || hypotheses.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg text-gray-600">No hypotheses found</p>
+          <p className="text-sm text-gray-500 mt-2">Initialize the database with sample data to get started</p>
+        </div>
+      </div>
+    );
+  }
       {
         id: 1,
         title: "Oil prices to go above $85/barrel by March",
@@ -123,16 +205,16 @@ const TradingDashboard = () => {
               className={`bg-white rounded-lg shadow-md p-6 cursor-pointer transition-all duration-200 ${
                 selectedHypothesis?.id === hyp.id ? 'ring-2 ring-blue-500' : 'hover:shadow-lg'
               }`}
-              onClick={() => setSelectedHypothesis(hyp)}
+              onClick={() => selectHypothesis(hyp)}
             >
               <h3 className="font-semibold text-lg mb-3 text-gray-800">{hyp.title}</h3>
               
               {/* Mini Chart */}
               <div className="h-32 mb-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={hyp.trendData}>
+                  <LineChart data={hyp.trendData || []}>
                     <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} dot={false} />
-                    <Tooltip formatter={(value) => [`$${value}`, 'Price']} />
+                    <Tooltip formatter={(value) => [`${value}`, 'Price']} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
