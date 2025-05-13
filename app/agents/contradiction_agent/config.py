@@ -1,6 +1,6 @@
 # app/agents/contradiction_agent/config.py
 import vertexai
-from vertexai.genai import GenerationConfig
+from vertexai.generative_models import GenerationConfig
 
 AGENT_NAME = "contradiction_agent"
 AGENT_DESCRIPTION = "Identifies contradictions and challenges hypotheses"
