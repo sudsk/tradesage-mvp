@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TradeSageAPI from '../api/tradeSageApi';
 
-const ImprovedTradingDashboard = () => {
+const TradingDashboard = () => {
   const [hypotheses, setHypotheses] = useState([]);
   const [selectedHypothesis, setSelectedHypothesis] = useState(null);
   const [activeTab, setActiveTab] = useState('analysis');
@@ -383,4 +383,4 @@ const ImprovedTradingDashboard = () => {
   );
 };
 
-export default ImprovedTradingDashboard;
+export default TradingDashboard;
