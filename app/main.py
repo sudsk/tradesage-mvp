@@ -5,6 +5,13 @@ import json
 from .graph import create_graph
 import uvicorn
 
+import logging
+import traceback
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 # Create FastAPI app
 app = FastAPI(title="TradeSage AI", version="1.0.0")
 
@@ -34,6 +41,7 @@ async def process_hypothesis(request: Request):
     try:
         # Get request data
         data = await request.json()
+        logger.info(f"Received request: {data}")        
         
         # Extract and validate input
         mode = data.get("mode", "analyze")  # analyze, generate, refine
@@ -64,16 +72,20 @@ async def process_hypothesis(request: Request):
             initial_state["hypothesis"] = data.get("hypothesis", "")
             if not initial_state["hypothesis"]:
                 raise HTTPException(status_code=400, detail="Missing hypothesis for analysis")
+
+        logger.info(f"Processing with initial state: {initial_state}")
         
         # Process through the workflow
         result = workflow.invoke(initial_state)
+        logger.info(f"Workflow result: {result}")        
         
         # Check for errors
         if result.get("error"):
+            logger.error(f"Workflow error: {result['error']}")            
             raise HTTPException(status_code=500, detail=result["error"])
         
         # Return structured response
-        return {
+        response = {
             "status": "success",
             "mode": mode,
             "input": initial_state["input"],
@@ -89,10 +101,14 @@ async def process_hypothesis(request: Request):
             "recommendations": result.get("final_response", ""),
             "timestamp": result.get("timestamp", "")
         }
+        logger.info(f"Returning response: {response}")
+        return response        
         
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")        
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/test")
