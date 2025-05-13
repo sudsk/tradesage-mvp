@@ -5,7 +5,7 @@ from vertexai.generative_models import GenerationConfig
 AGENT_NAME = "synthesis_agent"
 AGENT_DESCRIPTION = "Synthesizes research and contradictions into cohesive analysis"
 
-MODEL_NAME = "gemini-1.5-pro"
+MODEL_NAME = "gemini-2.0-flash"
 GENERATION_CONFIG = GenerationConfig(
     temperature=0.2,
     top_p=0.95,
