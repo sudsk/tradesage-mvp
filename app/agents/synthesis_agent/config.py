@@ -1,6 +1,6 @@
 # app/agents/synthesis_agent/config.py
 import vertexai
-from vertexai.genai import GenerationConfig
+from vertexai.generative_models import GenerationConfig
 
 AGENT_NAME = "synthesis_agent"
 AGENT_DESCRIPTION = "Synthesizes research and contradictions into cohesive analysis"
