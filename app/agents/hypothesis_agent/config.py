@@ -1,6 +1,6 @@
 # app/agents/hypothesis_agent/config.py
 import vertexai
-from vertexai.genai import GenerationConfig
+from vertexai.generative_models import GenerationConfig
 
 AGENT_NAME = "hypothesis_agent"
 AGENT_DESCRIPTION = "Generates, refines, and structures trading hypotheses"
