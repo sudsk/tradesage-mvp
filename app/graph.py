@@ -100,21 +100,21 @@ def create_graph():
     # Create the workflow graph
     workflow = StateGraph(TradeSageState)
    
-    # Add nodes
-    workflow.add_node("hypothesis", hypothesis_node)
-    workflow.add_node("research", research_node)
-    workflow.add_node("contradiction", contradiction_node)
-    workflow.add_node("synthesis", synthesis_node)
-    workflow.add_node("alert", alert_node)
+    # Add nodes with different names (note the prefix)
+    workflow.add_node("hypothesis_agent", hypothesis_node)
+    workflow.add_node("research_agent", research_node)
+    workflow.add_node("contradiction_agent", contradiction_node)
+    workflow.add_node("synthesis_agent", synthesis_node)
+    workflow.add_node("alert_agent", alert_node)
    
     # Add edges (define the flow)
-    workflow.add_edge("hypothesis", "research")
-    workflow.add_edge("research", "contradiction")
-    workflow.add_edge("contradiction", "synthesis")
-    workflow.add_edge("synthesis", "alert")
+    workflow.add_edge("hypothesis_agent", "research_agent")
+    workflow.add_edge("research_agent", "contradiction_agent")
+    workflow.add_edge("contradiction_agent", "synthesis_agent")
+    workflow.add_edge("synthesis_agent", "alert_agent")
    
     # Set entry point
-    workflow.set_entry_point("hypothesis")
+    workflow.set_entry_point("hypothesis_agent")
    
     # Compile and return the graph
     return workflow.compile()
