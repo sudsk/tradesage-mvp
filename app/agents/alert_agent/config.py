@@ -1,6 +1,6 @@
 # app/agents/alert_agent/config.py
 import vertexai
-from vertexai.genai import GenerationConfig
+from vertexai.generative_models import GenerationConfig
 
 AGENT_NAME = "alert_agent"
 AGENT_DESCRIPTION = "Generates alerts and actionable recommendations"
