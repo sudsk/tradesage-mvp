@@ -4,6 +4,7 @@ from vertexai.preview.generative_models import GenerativeModel
 from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
 from .prompt import SYSTEM_INSTRUCTION
 import json
+import re 
 
 class SynthesisAgent:
     def __init__(self):
