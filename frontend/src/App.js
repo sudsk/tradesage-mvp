@@ -7,16 +7,19 @@ function App() {
   const [theme, setTheme] = useState('light');
 
   useEffect(() => {
-    // Simulate app initialization
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('tradeSageTheme') || 'light';
+    setTheme(savedTheme);
+    
+    // Apply theme to document root
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    
+    // Simulate loading time
     const initializeApp = async () => {
-      // Check for saved theme preference
-      const savedTheme = localStorage.getItem('tradeSageTheme') || 'light';
-      setTheme(savedTheme);
-      
-      // Apply theme to document
-      document.documentElement.className = savedTheme;
-      
-      // Simulate loading time
       await new Promise(resolve => setTimeout(resolve, 1000));
       setIsLoading(false);
     };
@@ -28,12 +31,18 @@ function App() {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     localStorage.setItem('tradeSageTheme', newTheme);
-    document.documentElement.className = newTheme;
+    
+    // Toggle dark class on document root
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-900 flex items-center justify-center">
         <div className="text-center">
           {/* Enhanced loading animation */}
           <div className="relative mb-8">
@@ -46,7 +55,7 @@ function App() {
           <h1 className="text-4xl font-bold mb-4 text-gradient animate-pulse">
             TradeSage AI
           </h1>
-          <p className="text-gray-600 text-lg mb-4">
+          <p className="text-gray-600 dark:text-gray-300 text-lg mb-4">
             Initializing Multi-Agent Trading Analysis
           </p>
           
@@ -62,12 +71,13 @@ function App() {
   }
 
   return (
-    <div className={`App min-h-screen ${theme}`}>
-      {/* Theme toggle button */}
+    <div className={`App min-h-screen ${theme === 'dark' ? 'dark' : ''}`}>
+      {/* Theme toggle button - positioned top right */}
       <button
         onClick={toggleTheme}
-        className="fixed top-4 left-4 z-50 p-3 bg-white dark:bg-slate-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200 dark:border-slate-600 no-print"
+        className="fixed top-4 right-4 z-50 p-3 bg-white dark:bg-slate-800 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 border border-gray-200 dark:border-slate-600 no-print hover:scale-110"
         aria-label="Toggle theme"
+        title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
       >
         {theme === 'light' ? (
           <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,12 +91,14 @@ function App() {
       </button>
 
       {/* Version info */}
-      <div className="fixed bottom-4 left-4 z-40 text-xs text-gray-500 no-print">
+      <div className="fixed bottom-4 left-4 z-40 text-xs text-gray-500 dark:text-gray-400 no-print">
         TradeSage AI v2.0 - Enhanced UI
       </div>
 
-      {/* Main dashboard */}
-      <TradingDashboard />
+      {/* Main dashboard with dark mode support */}
+      <div className="dark:bg-slate-900 min-h-screen transition-colors duration-200">
+        <TradingDashboard />
+      </div>
     </div>
   );
 }
