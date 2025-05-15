@@ -328,7 +328,8 @@ body {
 
 .modal-content {
   @apply bg-white rounded-2xl shadow-2xl;
-  @apply max-w-2xl w-full max-h-90vh overflow-y-auto;
+  @apply max-w-2xl w-full overflow-y-auto;
+  max-height: 90vh; /* Use regular CSS instead of Tailwind */
   @apply animate-scale-in;
 }
 
