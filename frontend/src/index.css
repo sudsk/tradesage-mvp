@@ -549,3 +549,108 @@ body {
   border-top: 6px solid #1f2937;
   z-index: 1000;
 }
+
+/* Dark mode enhancements - Add to the end of your index.css */
+
+/* Dark mode body and base styles */
+.dark body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #f1f5f9;
+}
+
+/* Dark mode card styles */
+.dark .card,
+.dark .bg-white {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+/* Dark mode sidebar */
+.dark .sidebar {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+/* Dark mode form inputs */
+.dark .form-input,
+.dark .form-textarea,
+.dark .form-select {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+.dark .form-input::placeholder,
+.dark .form-textarea::placeholder {
+  color: #64748b;
+}
+
+/* Dark mode modals */
+.dark .modal-content {
+  background-color: #1e293b;
+  color: #f1f5f9;
+}
+
+/* Dark mode charts */
+.dark .chart-container {
+  background-color: #334155;
+  border-color: #475569;
+}
+
+/* Dark mode hover states */
+.dark .sidebar-item:hover {
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+}
+
+/* Dark mode status badges */
+.dark .status-on-schedule {
+  background: linear-gradient(to right, #059669, #10b981);
+}
+
+.dark .status-on-demand {
+  background: linear-gradient(to right, #2563eb, #3b82f6);
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #475569, #64748b);
+  border-color: #334155;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #64748b, #94a3b8);
+}
+
+/* Dark mode text colors */
+.dark .text-gray-800 {
+  color: #f1f5f9;
+}
+
+.dark .text-gray-700 {
+  color: #e2e8f0;
+}
+
+.dark .text-gray-600 {
+  color: #cbd5e1;
+}
+
+.dark .text-gray-500 {
+  color: #94a3b8;
+}
+
+/* Dark mode skeleton */
+.dark .skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+}
+
+/* Dark mode glass effect */
+.dark .glass {
+  background: rgba(30, 41, 59, 0.25);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
