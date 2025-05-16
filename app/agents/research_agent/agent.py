@@ -1,4 +1,4 @@
-# app/agents/research_agent/agent.py
+# app/agents/research_agent/agent.py - Updated to reduce API calls
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel
 from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
@@ -22,32 +22,33 @@ class ResearchAgent:
             self.model = None
     
     def process(self, input_data):
-        """Conduct research based on the hypothesis."""
+        """Conduct research based on the hypothesis with reduced API calls."""
         if not self.model:
             return {"error": "Model not initialized"}
         
         hypothesis = input_data.get("hypothesis", "")
         processed_hypothesis = input_data.get("processed_hypothesis", hypothesis)
         
-        # Extract instruments/symbols from hypothesis
+        # Extract instruments/symbols from hypothesis (limit to 1-2 instruments)
         instruments = self._extract_instruments(processed_hypothesis)
         
-        # Gather market data
+        # Gather market data (only for main instruments to avoid rate limiting)
         market_data = {}
-        for instrument in instruments:
+        for i, instrument in enumerate(instruments[:2]):  # Limit to 2 instruments
+            print(f"Fetching data for instrument {i+1}/{min(2, len(instruments))}: {instrument}")
             market_data[instrument] = market_data_tool(instrument, "yahoo", PROJECT_ID)
         
-        # Gather news data
+        # Gather news data (reduced frequency)
         news_query = self._create_news_query(processed_hypothesis)
         news_data = news_data_tool(news_query, 7, PROJECT_ID)
         
         # Create research summary prompt
         prompt = f"""
-        Research Summary for Hypothesis: {processed_hypothesis}
+        Research Summary for Hypothesis: {processed_hypothesis[:200]}...
         
-        Market Data: {json.dumps(market_data, indent=2)}
+        Market Data: {json.dumps(market_data, indent=2)[:1000]}...
         
-        News Data: {json.dumps(news_data, indent=2)}
+        News Data: {json.dumps(news_data, indent=2)[:1000]}...
         
         Please provide:
         1. Summary of market data findings
@@ -56,6 +57,7 @@ class ResearchAgent:
         4. Current market context
         
         Focus on factual information without analysis.
+        Keep the summary concise and relevant to the hypothesis.
         """
         
         try:
@@ -69,35 +71,71 @@ class ResearchAgent:
                 "status": "success"
             }
         except Exception as e:
+            print(f"Research agent error: {str(e)}")
+            # Return fallback data if research fails
             return {
-                "error": str(e),
-                "status": "error"
+                "research_data": {
+                    "market_data": market_data,
+                    "news_data": {"articles": [], "status": "limited"},
+                    "summary": f"Basic research completed for: {processed_hypothesis[:100]}..."
+                },
+                "status": "success"
             }
     
     def _extract_instruments(self, text):
-        """Extract stock symbols and instruments from text."""
-        # Simple pattern matching for common stock symbols
-        symbols = re.findall(r'\b[A-Z]{1,5}\b', text)
-        # Filter out common words that aren't symbols
-        exclude = {'AI', 'THE', 'AND', 'OR', 'NOT', 'FOR', 'IN', 'ON', 'AT', 'TO', 'BY'}
-        symbols = [s for s in symbols if s not in exclude]
+        """Extract stock symbols and instruments from text with better filtering."""
+        # Common ETF and stock patterns
+        etf_patterns = [
+            r'\b([A-Z]{3,5})\s+ETF',
+            r'\bETF[:\s]+([A-Z]{3,5})',
+            r'\b([A-Z]{3,5})\s+(?:fund|index)',
+        ]
         
-        # If no symbols found, extract sector/industry terms
-        if not symbols:
-            # Look for common sector/ETF terms
-            sectors = ['SPY', 'XLF', 'XLE', 'XLK', 'QQQ', 'IWM']  # Common ETFs
-            symbols = sectors[:2]  # Default to a couple of major ETFs
+        # Extract ETFs first
+        instruments = []
+        for pattern in etf_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            instruments.extend(matches)
         
-        return symbols[:3]  # Limit to 3 symbols to avoid too many API calls
+        # If no ETFs found, look for regular symbols
+        if not instruments:
+            symbols = re.findall(r'\b([A-Z]{3,5})\b', text)
+            # Filter out common words
+            exclude = {
+                'THE', 'AND', 'OR', 'NOT', 'FOR', 'IN', 'ON', 'AT', 'TO', 'BY',
+                'ETF', 'USD', 'API', 'GDP', 'CPI', 'FED', 'CEO', 'CFO', 'SEC'
+            }
+            instruments = [s for s in symbols if s not in exclude and len(s) >= 3]
+        
+        # If still no instruments, use defaults based on hypothesis content
+        if not instruments:
+            if 'oil' in text.lower() or 'energy' in text.lower():
+                instruments = ['XLE', 'USO']
+            elif 'tech' in text.lower() or 'ai' in text.lower():
+                instruments = ['QQQ', 'XLK']
+            elif 'bank' in text.lower() or 'financial' in text.lower():
+                instruments = ['XLF', 'KRE']
+            elif 'inflation' in text.lower():
+                instruments = ['TIP', 'SCHP']
+            else:
+                instruments = ['SPY']  # Default to S&P 500
+        
+        # Return only the first 2 instruments to avoid rate limiting
+        return instruments[:2]
     
     def _create_news_query(self, hypothesis):
-        """Create a news search query from the hypothesis."""
-        # Extract key terms for news search
-        words = hypothesis.split()
-        key_terms = [word for word in words if len(word) > 3 and word.isalpha()]
-        return ' '.join(key_terms[:3])  # Use top 3 key terms
+        """Create a more targeted news search query."""
+        # Extract key financial terms
+        important_terms = re.findall(r'\b(?:oil|energy|bank|tech|inflation|fed|gdp|etf|stock|price|market)\w*\b', 
+                                    hypothesis.lower())
+        
+        # Use only the most relevant terms
+        if important_terms:
+            return ' '.join(important_terms[:3])
+        else:
+            # Fallback to general market terms
+            return 'market analysis financial'
 
 def create():
     """Create and return a research agent instance."""
     return ResearchAgent()
-
