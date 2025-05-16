@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TradeSageAPI from '../api/tradeSageApi';
 import Notification from './Notification';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { cleanMarkdownText, extractQuoteAndReason, formatHypothesisTitle } from '../utils/textUtils';
 
 const TradingDashboard = () => {
   const [hypotheses, setHypotheses] = useState([]);
@@ -229,7 +230,9 @@ const TradingDashboard = () => {
                     </div>
                   ) : (
                     <>
-                      <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2">{hyp.title}</h3>
+                      <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2">
+                        {formatHypothesisTitle(hyp.title)}
+                      </h3>
                       <div className="flex items-center space-x-3 text-xs">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(hyp.status)}`}>
                           {hyp.status}
@@ -415,9 +418,12 @@ const TradingDashboard = () => {
                       <div className="space-y-4 max-h-96 overflow-y-auto">
                         {selectedHypothesis.contradictions_detail?.slice(0, 5).map((item, index) => (
                           <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-red-500 shadow-sm hover:shadow-md transition-shadow">
-                            <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">"{item.quote}"</p>
+                            <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
+                              <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(extractQuoteAndReason(item.quote).quote)}"` }} />
+                            </p>
                             <p className="text-xs text-gray-600 mb-3">
-                              <strong className="text-red-600">Analysis:</strong> {item.reason}
+                              <strong className="text-red-600">Analysis:</strong>
+                              <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(extractQuoteAndReason(item.reason).reason) }} />
                             </p>
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-gray-500 truncate mr-2">{item.source}</span>
@@ -450,9 +456,12 @@ const TradingDashboard = () => {
                       <div className="space-y-4 max-h-96 overflow-y-auto">
                         {selectedHypothesis.confirmations_detail?.slice(0, 5).map((item, index) => (
                           <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm hover:shadow-md transition-shadow">
-                            <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">"{item.quote}"</p>
+                            <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
+                              <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(extractQuoteAndReason(item.quote).quote)}"` }} />
+                            </p>
                             <p className="text-xs text-gray-600 mb-3">
-                              <strong className="text-green-600">Analysis:</strong> {item.reason}
+                              <strong className="text-green-600">Analysis:</strong>
+                              <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(extractQuoteAndReason(item.reason).reason) }} />
                             </p>
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-gray-500 truncate mr-2">{item.source}</span>
