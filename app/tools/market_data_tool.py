@@ -1,16 +1,23 @@
-# app/tools/market_data_tool.py
-from app.services.market_data_service import MultiApiMarketData
-
-# Initialize the service once
-_market_data_service = MultiApiMarketData()
+from app.services.market_data_service import get_market_data
 
 def market_data_tool(instrument, source="auto", project_id="tradesage-mvp"):
-    """Tool for retrieving market data using the multi-API service."""
-    return _market_data_service.get_stock_data(instrument)
-
-# Keep the get_secret function for backward compatibility
+    """
+    Tool for retrieving market data with fallbacks and mock data
+    
+    Args:
+        instrument (str): The stock symbol or instrument to fetch data for
+        source (str): Ignored, kept for backward compatibility
+        project_id (str): Ignored, kept for backward compatibility
+        
+    Returns:
+        dict: A standardized market data response
+    """
+    return get_market_data(instrument)
+    
 def get_secret(secret_name, project_id):
-    """Retrieve secret from Secret Manager."""
+    """
+    Retrieve secret from Secret Manager - kept for backward compatibility
+    """
     try:
         from google.cloud import secretmanager
         client = secretmanager.SecretManagerServiceClient()
