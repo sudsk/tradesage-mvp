@@ -1,157 +1,80 @@
-# app/services/market_data_service.py - Multi-API implementation
+# app/services/market_data_service.py - Simplified for reliability
+
 import requests
 import os
 import time
 import random
-from typing import Dict, Optional, List
-from dataclasses import dataclass
-from enum import Enum
+import json
+from datetime import datetime, timedelta
 
-class DataProvider(Enum):
-    ALPHA_VANTAGE = "alpha_vantage"
-    FMP = "fmp"
-    IEX_CLOUD = "iex_cloud"
-    POLYGON = "polygon"
-    TWELVE_DATA = "twelve_data"
-    YAHOO_FALLBACK = "yahoo"
-
-@dataclass
-class ApiConfig:
-    name: str
-    daily_limit: int
-    per_minute_limit: int
-    requires_key: bool
-    base_url: str
-
-class MultiApiMarketData:
+class MarketDataService:
     def __init__(self):
-        self.api_configs = {
-            DataProvider.ALPHA_VANTAGE: ApiConfig(
-                name="Alpha Vantage",
-                daily_limit=500,
-                per_minute_limit=5,
-                requires_key=True,
-                base_url="https://www.alphavantage.co/query"
-            ),
-            DataProvider.FMP: ApiConfig(
-                name="Financial Modeling Prep",
-                daily_limit=250,
-                per_minute_limit=10,
-                requires_key=True,
-                base_url="https://financialmodelingprep.com/api/v3"
-            ),
-            DataProvider.IEX_CLOUD: ApiConfig(
-                name="IEX Cloud",
-                daily_limit=500000,  # Messages
-                per_minute_limit=100,
-                requires_key=True,
-                base_url="https://cloud.iexapis.com/stable"
-            ),
-            DataProvider.POLYGON: ApiConfig(
-                name="Polygon.io",
-                daily_limit=None,
-                per_minute_limit=5,
-                requires_key=True,
-                base_url="https://api.polygon.io"
-            ),
-            DataProvider.TWELVE_DATA: ApiConfig(
-                name="Twelve Data",
-                daily_limit=800,
-                per_minute_limit=8,
-                requires_key=True,
-                base_url="https://api.twelvedata.com"
-            )
-        }
+        # Load API keys from environment
+        self.alpha_vantage_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        self.fmp_key = os.getenv("FMP_API_KEY")
         
-        # API Keys from environment
-        self.api_keys = {
-            DataProvider.ALPHA_VANTAGE: os.getenv("ALPHA_VANTAGE_API_KEY"),
-            DataProvider.FMP: os.getenv("FMP_API_KEY"),
-            DataProvider.IEX_CLOUD: os.getenv("IEX_CLOUD_TOKEN"),
-            DataProvider.POLYGON: os.getenv("POLYGON_API_KEY"),
-            DataProvider.TWELVE_DATA: os.getenv("TWELVE_DATA_API_KEY")
-        }
+        # Cache to prevent redundant calls
+        self._cache = {}
+        self._cache_duration = 300  # 5 minutes
         
-        # Priority order for APIs (most reliable first)
-        self.api_priority = [
-            DataProvider.IEX_CLOUD,
-            DataProvider.ALPHA_VANTAGE,
-            DataProvider.FMP,
-            DataProvider.TWELVE_DATA,
-            DataProvider.POLYGON,
-            DataProvider.YAHOO_FALLBACK
-        ]
-        
-        # Simple in-memory usage tracking
-        self.usage_tracker = {}
+        print("Market data service initialized with:")
+        print(f"- Alpha Vantage API key: {'Available' if self.alpha_vantage_key else 'Not found'}")
+        print(f"- FMP API key: {'Available' if self.fmp_key else 'Not found'}")
     
-    def get_stock_data(self, symbol: str, retries: int = 3) -> Optional[Dict]:
-        """Get stock data with automatic failover between APIs"""
+    def get_stock_data(self, symbol):
+        """Main method to fetch stock data with fallbacks"""
+        # Check cache first
+        if symbol in self._cache:
+            cache_time, cache_data = self._cache[symbol]
+            if time.time() - cache_time < self._cache_duration:
+                print(f"Using cached data for {symbol}")
+                return cache_data
         
-        for provider in self.api_priority:
-            if not self._can_use_api(provider):
-                continue
-                
+        # Try Alpha Vantage first (if key is available)
+        if self.alpha_vantage_key:
             try:
-                print(f"Trying {provider.value} for {symbol}")
-                data = self._fetch_from_provider(provider, symbol)
-                
-                if data and data.get('status') == 'success':
-                    self._track_usage(provider)
-                    return self._normalize_data(data, provider)
-                    
+                print(f"Trying Alpha Vantage for {symbol}")
+                data = self._fetch_alpha_vantage(symbol)
+                self._cache[symbol] = (time.time(), data)
+                return data
             except Exception as e:
-                print(f"Error with {provider.value}: {str(e)}")
-                continue
-                
+                print(f"Alpha Vantage failed: {str(e)}")
+        
+        # Try FMP next (if key is available)
+        if self.fmp_key:
+            try:
+                print(f"Trying Financial Modeling Prep for {symbol}")
+                data = self._fetch_fmp(symbol)
+                self._cache[symbol] = (time.time(), data)
+                return data
+            except Exception as e:
+                print(f"FMP failed: {str(e)}")
+        
+        # Try Yahoo Finance as last resort
+        try:
+            print(f"Trying Yahoo Finance for {symbol}")
+            data = self._fetch_yahoo(symbol)
+            self._cache[symbol] = (time.time(), data)
+            return data
+        except Exception as e:
+            print(f"Yahoo Finance failed: {str(e)}")
+        
         # If all APIs fail, return mock data
         print(f"All APIs failed for {symbol}, returning mock data")
-        return self._get_mock_data(symbol)
+        mock_data = self._generate_mock_data(symbol)
+        self._cache[symbol] = (time.time(), mock_data)
+        return mock_data
     
-    def _can_use_api(self, provider: DataProvider) -> bool:
-        """Check if we can use this API (has key, within limits)"""
-        if provider == DataProvider.YAHOO_FALLBACK:
-            return True
-            
-        # Check if we have API key
-        if not self.api_keys.get(provider):
-            return False
-            
-        # Check daily limits (simplified)
-        config = self.api_configs[provider]
-        if config.daily_limit and self._get_daily_usage(provider) >= config.daily_limit:
-            return False
-            
-        return True
-    
-    def _fetch_from_provider(self, provider: DataProvider, symbol: str) -> Dict:
-        """Fetch data from specific provider"""
-        
-        if provider == DataProvider.ALPHA_VANTAGE:
-            return self._fetch_alpha_vantage(symbol)
-        elif provider == DataProvider.FMP:
-            return self._fetch_fmp(symbol)
-        elif provider == DataProvider.IEX_CLOUD:
-            return self._fetch_iex_cloud(symbol)
-        elif provider == DataProvider.POLYGON:
-            return self._fetch_polygon(symbol)
-        elif provider == DataProvider.TWELVE_DATA:
-            return self._fetch_twelve_data(symbol)
-        elif provider == DataProvider.YAHOO_FALLBACK:
-            return self._fetch_yahoo_fallback(symbol)
-        else:
-            raise ValueError(f"Unknown provider: {provider}")
-    
-    def _fetch_alpha_vantage(self, symbol: str) -> Dict:
-        """Fetch from Alpha Vantage API"""
+    def _fetch_alpha_vantage(self, symbol):
+        """Fetch data from Alpha Vantage"""
         params = {
             'function': 'GLOBAL_QUOTE',
             'symbol': symbol,
-            'apikey': self.api_keys[DataProvider.ALPHA_VANTAGE]
+            'apikey': self.alpha_vantage_key
         }
         
-        response = requests.get(self.api_configs[DataProvider.ALPHA_VANTAGE].base_url, 
-                              params=params, timeout=10)
+        url = "https://www.alphavantage.co/query"
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         
         data = response.json()
@@ -160,29 +83,39 @@ class MultiApiMarketData:
         if 'Error Message' in data:
             raise Exception(data['Error Message'])
             
-        if 'Global Quote' not in data:
-            raise Exception("No data in response")
+        if 'Global Quote' not in data or not data['Global Quote']:
+            raise Exception("No data in Alpha Vantage response")
             
         quote = data['Global Quote']
+        price = float(quote.get('05. price', 0))
+        
+        if price <= 0:
+            raise Exception("Invalid price data")
         
         return {
-            'status': 'success',
-            'provider': 'alpha_vantage',
-            'symbol': symbol,
-            'price': float(quote.get('05. price', 0)),
-            'change': float(quote.get('09. change', 0)),
-            'change_percent': quote.get('10. change percent', '0.00%').replace('%', ''),
-            'volume': int(quote.get('06. volume', 0)),
-            'previous_close': float(quote.get('08. previous close', 0)),
-            'open': float(quote.get('02. open', 0)),
-            'high': float(quote.get('03. high', 0)),
-            'low': float(quote.get('04. low', 0))
+            'instrument': symbol,
+            'source': 'alpha_vantage',
+            'data': {
+                'symbol': symbol,
+                'info': {
+                    'name': symbol,
+                    'sector': 'Technology',  # Placeholder
+                    'marketCap': 0,  # Placeholder
+                    'currentPrice': price,
+                    'previousClose': float(quote.get('08. previous close', 0)),
+                    'dayChange': float(quote.get('09. change', 0)),
+                    'dayChangePercent': float(quote.get('10. change percent', '0.0%').replace('%', ''))
+                },
+                'recent_price': price,
+                'price_history': {}  # Would need additional API call
+            },
+            'status': 'success'
         }
     
-    def _fetch_fmp(self, symbol: str) -> Dict:
-        """Fetch from Financial Modeling Prep API"""
-        url = f"{self.api_configs[DataProvider.FMP].base_url}/quote/{symbol}"
-        params = {'apikey': self.api_keys[DataProvider.FMP]}
+    def _fetch_fmp(self, symbol):
+        """Fetch data from Financial Modeling Prep"""
+        url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}"
+        params = {'apikey': self.fmp_key}
         
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
@@ -190,168 +123,160 @@ class MultiApiMarketData:
         data = response.json()
         
         if not data or len(data) == 0:
-            raise Exception("No data received")
+            raise Exception("No data received from FMP")
             
         quote = data[0]
+        price = quote.get('price', 0)
+        
+        if price <= 0:
+            raise Exception("Invalid price data from FMP")
         
         return {
-            'status': 'success',
-            'provider': 'fmp',
-            'symbol': symbol,
-            'price': quote.get('price', 0),
-            'change': quote.get('change', 0),
-            'change_percent': quote.get('changesPercentage', 0),
-            'volume': quote.get('volume', 0),
-            'previous_close': quote.get('previousClose', 0),
-            'open': quote.get('open', 0),
-            'high': quote.get('dayHigh', 0),
-            'low': quote.get('dayLow', 0)
-        }
-    
-    def _fetch_iex_cloud(self, symbol: str) -> Dict:
-        """Fetch from IEX Cloud API"""
-        url = f"{self.api_configs[DataProvider.IEX_CLOUD].base_url}/stock/{symbol}/quote"
-        params = {'token': self.api_keys[DataProvider.IEX_CLOUD]}
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        return {
-            'status': 'success',
-            'provider': 'iex_cloud',
-            'symbol': symbol,
-            'price': data.get('latestPrice', 0),
-            'change': data.get('change', 0),
-            'change_percent': data.get('changePercent', 0) * 100,
-            'volume': data.get('latestVolume', 0),
-            'previous_close': data.get('previousClose', 0),
-            'open': data.get('open', 0),
-            'high': data.get('high', 0),
-            'low': data.get('low', 0)
-        }
-    
-    def _fetch_polygon(self, symbol: str) -> Dict:
-        """Fetch from Polygon.io API"""
-        url = f"{self.api_configs[DataProvider.POLYGON].base_url}/v2/aggs/ticker/{symbol}/prev"
-        params = {'apikey': self.api_keys[DataProvider.POLYGON]}
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if not data.get('results') or len(data['results']) == 0:
-            raise Exception("No data received")
-            
-        result = data['results'][0]
-        
-        # Calculate change (Polygon doesn't provide it directly)
-        current_price = result.get('c', 0)
-        previous_close = result.get('o', current_price)  # Using open as proxy
-        change = current_price - previous_close
-        change_percent = (change / previous_close * 100) if previous_close != 0 else 0
-        
-        return {
-            'status': 'success',
-            'provider': 'polygon',
-            'symbol': symbol,
-            'price': current_price,
-            'change': change,
-            'change_percent': change_percent,
-            'volume': result.get('v', 0),
-            'previous_close': previous_close,
-            'open': result.get('o', 0),
-            'high': result.get('h', 0),
-            'low': result.get('l', 0)
-        }
-    
-    def _fetch_twelve_data(self, symbol: str) -> Dict:
-        """Fetch from Twelve Data API"""
-        url = f"{self.api_configs[DataProvider.TWELVE_DATA].base_url}/quote"
-        params = {
-            'symbol': symbol,
-            'apikey': self.api_keys[DataProvider.TWELVE_DATA]
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if data.get('status') == 'error':
-            raise Exception(data.get('message', 'API Error'))
-        
-        return {
-            'status': 'success',
-            'provider': 'twelve_data',
-            'symbol': symbol,
-            'price': float(data.get('close', 0)),
-            'change': float(data.get('change', 0)),
-            'change_percent': float(data.get('percent_change', 0)),
-            'volume': int(data.get('volume', 0)),
-            'previous_close': float(data.get('previous_close', 0)),
-            'open': float(data.get('open', 0)),
-            'high': float(data.get('high', 0)),
-            'low': float(data.get('low', 0))
-        }
-    
-    def _fetch_yahoo_fallback(self, symbol: str) -> Dict:
-        """Fallback to yfinance with rate limiting"""
-        import yfinance as yf
-        time.sleep(2)  # Rate limiting
-        
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="2d")
-        
-        if hist.empty:
-            raise Exception("No data from Yahoo Finance")
-        
-        current_price = hist['Close'].iloc[-1]
-        previous_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
-        
-        return {
-            'status': 'success',
-            'provider': 'yahoo_fallback',
-            'symbol': symbol,
-            'price': float(current_price),
-            'change': float(current_price - previous_close),
-            'change_percent': float((current_price - previous_close) / previous_close * 100),
-            'volume': int(hist['Volume'].iloc[-1]),
-            'previous_close': float(previous_close),
-            'open': float(hist['Open'].iloc[-1]),
-            'high': float(hist['High'].iloc[-1]),
-            'low': float(hist['Low'].iloc[-1])
-        }
-    
-    def _normalize_data(self, data: Dict, provider: DataProvider) -> Dict:
-        """Normalize data from different providers to standard format"""
-        return {
-            'instrument': data['symbol'],
-            'source': data['provider'],
+            'instrument': symbol,
+            'source': 'fmp',
             'data': {
-                'symbol': data['symbol'],
+                'symbol': symbol,
                 'info': {
-                    'name': data['symbol'],
-                    'currentPrice': data['price'],
-                    'previousClose': data['previous_close'],
-                    'dayChange': data['change'],
-                    'dayChangePercent': float(str(data['change_percent']).replace('%', '')),
-                    'volume': data['volume'],
-                    'open': data['open'],
-                    'high': data['high'],
-                    'low': data['low']
+                    'name': quote.get('name', symbol),
+                    'sector': quote.get('sector', 'Unknown'),
+                    'marketCap': quote.get('marketCap', 0),
+                    'currentPrice': price,
+                    'previousClose': quote.get('previousClose', 0),
+                    'dayChange': quote.get('change', 0),
+                    'dayChangePercent': quote.get('changesPercentage', 0)
                 },
-                'recent_price': data['price']
+                'recent_price': price,
+                'price_history': {}
             },
             'status': 'success'
         }
     
-    def _get_mock_data(self, symbol: str) -> Dict:
-        """Generate mock data as last resort"""
-        base_price = random.uniform(50, 200)
-        change = random.uniform(-5, 5)
+    def _fetch_yahoo(self, symbol):
+        """Fetch data directly from Yahoo Finance website"""
+        # Use direct HTML scraping as a backup approach
+        import requests
+        from bs4 import BeautifulSoup
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        try:
+            url = f"https://finance.yahoo.com/quote/{symbol}"
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Get current price
+            price_element = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
+            if not price_element:
+                raise Exception("Price element not found")
+                
+            price = float(price_element.get('value', 0))
+            
+            # Get previous close
+            prev_close_element = None
+            table_rows = soup.find_all('tr')
+            for row in table_rows:
+                if row.find('td') and 'Previous Close' in row.find('td').get_text():
+                    prev_close_element = row.find_all('td')[1]
+                    break
+            
+            prev_close = float(prev_close_element.get_text().replace(',', '')) if prev_close_element else price
+            change = price - prev_close
+            change_percent = (change / prev_close * 100) if prev_close != 0 else 0
+            
+            return {
+                'instrument': symbol,
+                'source': 'yahoo_scraped',
+                'data': {
+                    'symbol': symbol,
+                    'info': {
+                        'name': soup.find('h1').get_text() if soup.find('h1') else symbol,
+                        'sector': 'Unknown',  # Not easily scraped
+                        'marketCap': 0,  # Not easily scraped
+                        'currentPrice': price,
+                        'previousClose': prev_close,
+                        'dayChange': change,
+                        'dayChangePercent': change_percent
+                    },
+                    'recent_price': price,
+                    'price_history': {}
+                },
+                'status': 'success'
+            }
+            
+        except Exception as e:
+            print(f"Error scraping Yahoo Finance: {str(e)}")
+            
+            # Try a different Yahoo page as backup
+            try:
+                url = f"https://finance.yahoo.com/quote/{symbol}/history"
+                response = requests.get(url, headers=headers, timeout=10)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Look for price in historical data
+                price_rows = soup.find_all('tr', {'class': 'BdT Bdc($seperatorColor)'})
+                if price_rows and len(price_rows) > 0:
+                    cells = price_rows[0].find_all('td')
+                    if len(cells) >= 5:
+                        price = float(cells[4].get_text().replace(',', ''))
+                        return {
+                            'instrument': symbol,
+                            'source': 'yahoo_history',
+                            'data': {
+                                'symbol': symbol,
+                                'info': {
+                                    'name': symbol,
+                                    'sector': 'Unknown',
+                                    'marketCap': 0,
+                                    'currentPrice': price,
+                                    'previousClose': price,  # We don't have this
+                                    'dayChange': 0,  # We don't have this
+                                    'dayChangePercent': 0  # We don't have this
+                                },
+                                'recent_price': price,
+                                'price_history': {}
+                            },
+                            'status': 'success'
+                        }
+            except:
+                pass  # Let it fall through to the original error
+            
+            raise Exception(f"Failed to scrape Yahoo Finance: {str(e)}")
+    
+    def _generate_mock_data(self, symbol):
+        """Generate realistic mock data based on the symbol"""
+        # Use different price ranges for different symbols
+        symbol_first_letter = symbol[0].upper()
+        
+        # Assign price range based on first letter (just for variety)
+        if symbol_first_letter in 'ABCDE':
+            base_price = random.uniform(50, 150)
+        elif symbol_first_letter in 'FGHIJ':
+            base_price = random.uniform(100, 300)
+        elif symbol_first_letter in 'KLMNO':
+            base_price = random.uniform(150, 400)
+        elif symbol_first_letter in 'PQRST':
+            base_price = random.uniform(75, 250)
+        else:
+            base_price = random.uniform(25, 200)
+            
+        # Generate change
+        change_percent = random.uniform(-3, 3)
+        change = base_price * change_percent / 100
+        prev_close = base_price - change
+        
+        # Mock price history (last 7 days)
+        price_history = {}
+        now = datetime.now()
+        
+        for i in range(7, 0, -1):
+            day = now - timedelta(days=i)
+            day_str = day.strftime('%Y-%m-%d')
+            day_price = base_price * (1 + random.uniform(-0.05, 0.05))
+            price_history[day_str] = round(day_price, 2)
         
         return {
             'instrument': symbol,
@@ -359,40 +284,24 @@ class MultiApiMarketData:
             'data': {
                 'symbol': symbol,
                 'info': {
-                    'name': f"{symbol} Mock Data",
+                    'name': f"{symbol} Stock",
+                    'sector': random.choice(['Technology', 'Healthcare', 'Financial', 'Consumer', 'Industrial']),
+                    'marketCap': round(base_price * random.uniform(1000000, 1000000000), 0),
                     'currentPrice': round(base_price, 2),
-                    'previousClose': round(base_price - change, 2),
+                    'previousClose': round(prev_close, 2),
                     'dayChange': round(change, 2),
-                    'dayChangePercent': round((change / base_price) * 100, 2),
-                    'volume': random.randint(1000000, 10000000),
-                    'open': round(base_price + random.uniform(-2, 2), 2),
-                    'high': round(base_price + random.uniform(0, 5), 2),
-                    'low': round(base_price - random.uniform(0, 5), 2)
+                    'dayChangePercent': round(change_percent, 2),
+                    'volume': random.randint(100000, 10000000)
                 },
-                'recent_price': round(base_price, 2)
+                'recent_price': round(base_price, 2),
+                'price_history': price_history
             },
             'status': 'success_mock'
         }
-    
-    def _track_usage(self, provider: DataProvider):
-        """Track API usage"""
-        today = time.strftime("%Y-%m-%d")
-        key = f"{provider.value}_{today}"
-        self.usage_tracker[key] = self.usage_tracker.get(key, 0) + 1
-    
-    def _get_daily_usage(self, provider: DataProvider) -> int:
-        """Get today's usage for a provider"""
-        today = time.strftime("%Y-%m-%d")
-        key = f"{provider.value}_{today}"
-        return self.usage_tracker.get(key, 0)
 
-# Usage example
-market_data_service = MultiApiMarketData()
+# Create a singleton instance
+market_data_service = MarketDataService()
 
-def enhanced_market_data_tool(instrument, source="auto", project_id="tradesage-mvp"):
-    """Enhanced market data tool with multiple API fallbacks"""
-    try:
-        return market_data_service.get_stock_data(instrument)
-    except Exception as e:
-        print(f"Error fetching data for {instrument}: {str(e)}")
-        return market_data_service._get_mock_data(instrument)
+def get_market_data(symbol):
+    """Helper function to get market data"""
+    return market_data_service.get_stock_data(symbol)
