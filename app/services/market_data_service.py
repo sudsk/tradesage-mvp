@@ -298,7 +298,78 @@ class MarketDataService:
             },
             'status': 'success_mock'
         }
-
+        
+    def _fetch_yahoo_crypto(self, crypto_symbol):
+        """Fetch cryptocurrency data from Yahoo Finance"""
+        import requests
+        from bs4 import BeautifulSoup
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        try:
+            url = f"https://finance.yahoo.com/quote/{crypto_symbol}"
+            print(f"Fetching crypto data from: {url}")
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Get current price
+            price_element = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
+            if not price_element:
+                raise Exception("Price element not found")
+                
+            price = float(price_element.get('value', 0))
+            
+            # Get name
+            crypto_name = crypto_symbol.split('-')[0].upper()
+            if crypto_symbol.startswith('BTC'):
+                crypto_name = 'Bitcoin'
+            elif crypto_symbol.startswith('ETH'):
+                crypto_name = 'Ethereum'
+            elif crypto_symbol.startswith('SOL'):
+                crypto_name = 'Solana'
+            elif crypto_symbol.startswith('ADA'):
+                crypto_name = 'Cardano'
+            
+            # Get previous close
+            prev_close_element = None
+            table_rows = soup.find_all('tr')
+            for row in table_rows:
+                if row.find('td') and 'Previous Close' in row.find('td').get_text():
+                    prev_close_element = row.find_all('td')[1]
+                    break
+            
+            prev_close = float(prev_close_element.get_text().replace(',', '')) if prev_close_element else price
+            change = price - prev_close
+            change_percent = (change / prev_close * 100) if prev_close != 0 else 0
+            
+            return {
+                'instrument': crypto_symbol,
+                'source': 'yahoo_crypto',
+                'data': {
+                    'symbol': crypto_symbol,
+                    'info': {
+                        'name': f"{crypto_name} USD",
+                        'sector': 'Cryptocurrency',
+                        'marketCap': 0,  # Not easily scraped
+                        'currentPrice': price,
+                        'previousClose': prev_close,
+                        'dayChange': change,
+                        'dayChangePercent': change_percent
+                    },
+                    'recent_price': price,
+                    'price_history': {}
+                },
+                'status': 'success'
+            }
+            
+        except Exception as e:
+            print(f"Error scraping Yahoo Finance for crypto: {str(e)}")
+            raise Exception(f"Failed to scrape Yahoo Finance for {crypto_symbol}: {str(e)}")
+            
 # Create a singleton instance
 market_data_service = MarketDataService()
 
