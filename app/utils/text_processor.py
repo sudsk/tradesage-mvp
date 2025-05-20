@@ -4,7 +4,7 @@ import re
 import json
 
 class ResponseProcessor:
-    @staticmethod
+@staticmethod
     def clean_hypothesis_title(raw_title):
         """Extract clean hypothesis title from LLM response."""
         if not raw_title:
@@ -26,13 +26,25 @@ class ResponseProcessor:
             r'([^:\n]+will\s+increase\s+[^.]+)',
             r'([^:\n]+will\s+go\s+above\s+[^.]+)',
             r'([^:\n]+will\s+rise\s+[^.]+)',
-            r'(Bitcoin[^.]+)',  # Default Bitcoin pattern
+            r'([^:\n]+oil\s+prices?[^.]+)',  # New pattern for oil prices
+            r'([^:\n]+crude\s+oil[^.]+)',    # New pattern for crude oil
+            r'(WTI[^.]+)',                   # New pattern for WTI
+            r'(West\s+Texas\s+Intermediate[^.]+)', # New pattern for full WTI name
+            r'(Bitcoin[^.]+)',               # Default Bitcoin pattern
         ]
         
         for pattern in patterns:
             match = re.search(pattern, cleaned, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
+        
+        # If input contains "oil" and a price, use a more generic extraction
+        if "oil" in cleaned.lower() and re.search(r'\$\d+', cleaned):
+            # Extract first sentence with "oil" and a dollar amount
+            sentences = re.split(r'[.!?]\s', cleaned)
+            for sentence in sentences:
+                if "oil" in sentence.lower() and re.search(r'\$\d+', sentence):
+                    return sentence.strip()
         
         # Default to first sentence if no pattern matches
         sentences = re.split(r'[.!?]\s', cleaned)
