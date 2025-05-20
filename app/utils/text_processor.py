@@ -4,7 +4,7 @@ import re
 import json
 
 class ResponseProcessor:
-@staticmethod
+    @staticmethod
     def clean_hypothesis_title(raw_title):
         """Extract clean hypothesis title from LLM response."""
         if not raw_title:
