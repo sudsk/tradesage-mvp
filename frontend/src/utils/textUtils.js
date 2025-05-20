@@ -19,9 +19,12 @@ export const cleanMarkdownText = (text) => {
 };
 
 export const extractQuoteAndReason = (text) => {
+  // Don't truncate quote or reason by default
+  if (!text) return { quote: '', reason: '' };
+  
   // Extract quote and reason from contradiction/confirmation text
   const quoteMatch = text.match(/["'""]([^"'""]*)["'""]/);
-  const quote = quoteMatch ? quoteMatch[1] : text.substring(0, 100) + '...';
+  const quote = quoteMatch ? quoteMatch[1] : text;
   
   // Extract analysis/reason part
   const analysisMatch = text.match(/Analysis:\s*(.*)/i) || text.match(/Reason:\s*(.*)/i);
