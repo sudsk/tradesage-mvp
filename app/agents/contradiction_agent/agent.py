@@ -146,7 +146,7 @@ class ContradictionAgent:
         """Parse contradictions from the response text for general hypotheses."""
         contradictions = []
         
-        # Split by common patterns
+        # Split by common patterns more reliably
         sections = re.split(r'\n(?=\d+[\.\)]\s+|\*\s+|\-\s+)', text)
         
         for section in sections:
@@ -159,9 +159,19 @@ class ContradictionAgent:
             cleaned = re.sub(r'^\*\s*', '', cleaned)
             cleaned = re.sub(r'^\-\s*', '', cleaned)
             
+            # Ensure we get the full content, not truncated
+            quote = cleaned
+            reason = "Market analysis identifies this potential challenge to the hypothesis."
+            
+            # Try to separate quote and reasoning if there's a clear separator
+            if ': ' in cleaned:
+                parts = cleaned.split(': ', 1)
+                quote = parts[0].strip()
+                reason = parts[1].strip() if len(parts) > 1 else reason
+            
             contradictions.append({
-                "quote": cleaned,
-                "reason": "Market analysis identifies this potential challenge to the hypothesis.",
+                "quote": quote,  # Don't truncate the quote
+                "reason": reason,
                 "source": "Agent Analysis",
                 "strength": "Medium"
             })
