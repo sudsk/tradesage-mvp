@@ -418,12 +418,13 @@ const TradingDashboard = () => {
                       <div className="space-y-4 max-h-96 overflow-y-auto">
                         {selectedHypothesis.contradictions_detail?.slice(0, 5).map((item, index) => (
                           <div key={index} className="bg-white rounded-xl p-4 border-l-4 border-red-500 shadow-sm hover:shadow-md transition-shadow">
+                            {/* Display full quote without truncation */}
                             <p className="text-gray-800 mb-3 text-sm leading-relaxed font-medium">
-                              <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(extractQuoteAndReason(item.quote).quote)}"` }} />
+                              <span dangerouslySetInnerHTML={{ __html: `"${cleanMarkdownText(item.quote)}"` }} />
                             </p>
                             <p className="text-xs text-gray-600 mb-3">
                               <strong className="text-red-600">Analysis:</strong>
-                              <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(extractQuoteAndReason(item.reason).reason) }} />
+                              <span dangerouslySetInnerHTML={{ __html: cleanMarkdownText(item.reason) }} />
                             </p>
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-gray-500 truncate mr-2">{item.source}</span>
