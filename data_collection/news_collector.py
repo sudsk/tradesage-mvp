@@ -20,7 +20,7 @@ NEWS_SOURCES = [
         "key_param": "token",
         "api_key": "YOUR_FREE_API_KEY",  # Sign up at gnews.io
         "query_param": "q",
-        "limit": 10
+        "limit": 1000
     }
 ]
 
