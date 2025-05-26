@@ -10,7 +10,7 @@ NEWS_SOURCES = [
         "name": "marketaux",
         "url": "https://api.marketaux.com/v1/news/all",
         "key_param": "api_token",
-        "api_key": "YOUR_FREE_API_KEY",  # Sign up at marketaux.com
+        "api_key": " ",  # Sign up at marketaux.com
         "symbols_param": "symbols",
         "limit": 100
     },
@@ -18,7 +18,7 @@ NEWS_SOURCES = [
         "name": "gnews",
         "url": "https://gnews.io/api/v4/search",
         "key_param": "token",
-        "api_key": "YOUR_FREE_API_KEY",  # Sign up at gnews.io
+        "api_key": " ",  # Sign up at gnews.io
         "query_param": "q",
         "limit": 1000
     }
