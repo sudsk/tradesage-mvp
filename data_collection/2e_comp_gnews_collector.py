@@ -134,7 +134,7 @@ class ComprehensiveGNewsCollector:
 
 # Usage example
 def main():
-    collector = ComprehensiveGNewsCollector("36beb52fe21edad5d1df649467d7866b")
+    collector = ComprehensiveGNewsCollector("<api-key>")
     
     instruments = {
         "MSFT": ["Microsoft Corporation", "MSFT stock", "Azure cloud", "Satya Nadella", "Microsoft earnings"],
