@@ -272,7 +272,10 @@ def generate_embeddings_and_upload(documents):
         for embedding_data in all_embeddings:
             # Convert numpy array to list for JSON serialization
             embedding_copy = embedding_data.copy()
-            embedding_copy["embedding"] = embedding_copy["embedding"].tolist()
+            # Check if embedding is already a list or needs conversion
+            if hasattr(embedding_copy["embedding"], 'tolist'):
+                embedding_copy["embedding"] = embedding_copy["embedding"].tolist()
+            # If it's already a list, keep it as is
             f.write(json.dumps(embedding_copy) + '\n')
     
     # Upload to GCS
