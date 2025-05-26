@@ -215,8 +215,8 @@ def generate_embeddings_and_upload(documents):
     """Generate embeddings and upload to GCS in Vector Search format"""
     print("🔮 Generating embeddings and uploading to GCS...")
     
-    # Initialize embedding model
-    embedding_model = TextEmbeddingModel.from_pretrained("textembedding-gecko@001")
+    # Initialize embedding model - use gemini-embedding-001 which requires batch_size=1
+    embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
     
     # Create GCS bucket if it doesn't exist
     storage_client = storage.Client(project=PROJECT_ID)
@@ -227,36 +227,44 @@ def generate_embeddings_and_upload(documents):
         bucket = storage_client.create_bucket(BUCKET_NAME, location=LOCATION)
         print(f"✅ Created new bucket: {BUCKET_NAME}")
     
-    # Generate embeddings in batches
-    batch_size = 50
+    # Generate embeddings one by one (batch_size=1 for gemini-embedding-001)
     all_embeddings = []
+    failed_count = 0
     
-    for i in tqdm(range(0, len(documents), batch_size), desc="Generating embeddings"):
-        batch = documents[i:i+batch_size]
-        texts = [doc["content"] for doc in batch]
-        
+    for i, doc in enumerate(tqdm(documents, desc="Generating embeddings")):
         try:
-            embeddings = embedding_model.get_embeddings(texts)
+            # Generate embedding for single document
+            embeddings = embedding_model.get_embeddings([doc["content"]])
             
-            for j, doc in enumerate(batch):
-                # Format for Vector Search: one JSON object per line
-                embedding_data = {
-                    "id": doc["id"],
-                    "embedding": embeddings[j].values,
-                    "restricts": [
-                        {"namespace": "instrument", "allow": [doc["instrument"]]},
-                        {"namespace": "source_type", "allow": [doc["source_type"]]},
-                        {"namespace": "has_title", "allow": [str(doc["metadata"]["has_title"])]}
-                    ]
-                }
-                all_embeddings.append(embedding_data)
+            # Format for Vector Search: one JSON object per line
+            embedding_data = {
+                "id": doc["id"],
+                "embedding": embeddings[0].values,
+                "restricts": [
+                    {"namespace": "instrument", "allow": [doc["instrument"]]},
+                    {"namespace": "source_type", "allow": [doc["source_type"]]},
+                    {"namespace": "has_title", "allow": [str(doc["metadata"]["has_title"])]}
+                ]
+            }
+            all_embeddings.append(embedding_data)
+            
+            # Add small delay to avoid rate limiting
+            if i % 10 == 0 and i > 0:
+                time.sleep(0.1)
                 
         except Exception as e:
-            print(f"❌ Error generating embeddings for batch {i//batch_size + 1}: {str(e)}")
+            failed_count += 1
+            print(f"❌ Error generating embedding for document {i+1}: {str(e)}")
+            if failed_count > len(documents) * 0.5:  # If more than 50% fail, stop
+                print(f"❌ Too many failures ({failed_count}), stopping...")
+                break
             continue
     
     if not all_embeddings:
         raise Exception("No embeddings generated successfully")
+    
+    success_rate = len(all_embeddings) / len(documents) * 100
+    print(f"✅ Successfully generated {len(all_embeddings)}/{len(documents)} embeddings ({success_rate:.1f}% success rate)")
     
     # Save embeddings to JSONL file
     embeddings_file = f"{OUTPUT_DIR}/embeddings_{UID}.jsonl"
@@ -350,8 +358,8 @@ def create_query_function(my_index_endpoint, deployed_index_id, documents):
     def query_vector_search(query_text, num_neighbors=5, instrument_filter=None):
         """Query the Vector Search index"""
         try:
-            # Generate embedding for query
-            embedding_model = TextEmbeddingModel.from_pretrained("textembedding-gecko@001")
+            # Generate embedding for query using the same model
+            embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
             query_embedding = embedding_model.get_embeddings([query_text])[0].values
             
             # Prepare restricts for filtering
