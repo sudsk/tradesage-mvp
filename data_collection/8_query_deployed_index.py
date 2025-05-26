@@ -122,27 +122,55 @@ def create_query_function(endpoint_name, deployed_index_id):
                     num_neighbors=num_neighbors
                 )
             
-            print(f"✅ Found {len(response[0])} results")
+            # Debug: Check response structure
+            print(f"   🔍 Debug - Response type: {type(response)}")
+            print(f"   🔍 Debug - Response length: {len(response) if hasattr(response, '__len__') else 'N/A'}")
+            
+            # Handle different response formats
+            if isinstance(response, list) and len(response) > 0:
+                neighbors = response[0]
+            elif hasattr(response, 'neighbors') and response.neighbors:
+                neighbors = response.neighbors[0] if isinstance(response.neighbors, list) else response.neighbors
+            elif hasattr(response, '__iter__'):
+                # Try to iterate and get first element
+                try:
+                    neighbors = next(iter(response))
+                except (StopIteration, TypeError):
+                    neighbors = []
+            else:
+                print(f"   ❌ Unexpected response format: {type(response)}")
+                return []
+            
+            print(f"✅ Found {len(neighbors) if hasattr(neighbors, '__len__') else 0} results")
             
             # If we were filtering by instrument but couldn't do it at API level,
             # we need to filter results manually (this requires document metadata)
-            filtered_results = response[0]
-            if instrument_filter and len(response[0]) > num_neighbors:
+            filtered_results = neighbors
+            if instrument_filter and len(neighbors) > num_neighbors:
                 print(f"   🔍 Manually filtering by instrument: {instrument_filter}")
                 # Note: This would require loading document metadata to filter by instrument
                 # For now, we'll just take the first num_neighbors results
-                filtered_results = response[0][:num_neighbors]
+                filtered_results = neighbors[:num_neighbors]
+            
+            # Check if we have any results
+            if not filtered_results or len(filtered_results) == 0:
+                print("   ⚠️  No results returned from Vector Search")
+                return []
             
             # Process and return results
             results = []
             for i, neighbor in enumerate(filtered_results):
-                result = {
-                    "rank": i + 1,
-                    "id": neighbor.id,
-                    "distance": neighbor.distance,
-                    "similarity": 1 - neighbor.distance  # Convert distance to similarity
-                }
-                results.append(result)
+                try:
+                    result = {
+                        "rank": i + 1,
+                        "id": neighbor.id if hasattr(neighbor, 'id') else str(neighbor),
+                        "distance": neighbor.distance if hasattr(neighbor, 'distance') else 0.0,
+                        "similarity": 1 - (neighbor.distance if hasattr(neighbor, 'distance') else 0.0)
+                    }
+                    results.append(result)
+                except Exception as e:
+                    print(f"   ⚠️  Error processing result {i}: {str(e)}")
+                    continue
             
             return results
             
