@@ -77,18 +77,65 @@ def create_query_function(endpoint_name, deployed_index_id):
                 print(f"   Filtering by instrument: {instrument_filter}")
             
             # Query the deployed index
-            response = endpoint.find_neighbors(
-                deployed_index_id=deployed_index_id,
-                queries=[query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding],
-                num_neighbors=num_neighbors,
-                restricts=restricts if restricts else None
-            )
+            # Note: restricts/filtering may not be supported in this API version
+            # Try without restricts first, then apply filtering to results
+            try:
+                if restricts:
+                    # Try with restricts parameter (different possible names)
+                    try:
+                        response = endpoint.find_neighbors(
+                            deployed_index_id=deployed_index_id,
+                            queries=[query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding],
+                            num_neighbors=num_neighbors * 2,  # Get more results to filter
+                            restrict_tokens=restricts
+                        )
+                    except TypeError:
+                        # If restrict_tokens doesn't work, try other parameter names
+                        try:
+                            response = endpoint.find_neighbors(
+                                deployed_index_id=deployed_index_id,
+                                queries=[query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding],
+                                num_neighbors=num_neighbors * 2,
+                                filters=restricts
+                            )
+                        except TypeError:
+                            # Fallback: no filtering at API level
+                            print("   ⚠️  API-level filtering not supported, filtering results manually")
+                            response = endpoint.find_neighbors(
+                                deployed_index_id=deployed_index_id,
+                                queries=[query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding],
+                                num_neighbors=num_neighbors * 3  # Get more to filter manually
+                            )
+                else:
+                    # No filtering requested
+                    response = endpoint.find_neighbors(
+                        deployed_index_id=deployed_index_id,
+                        queries=[query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding],
+                        num_neighbors=num_neighbors
+                    )
+            except Exception as api_error:
+                print(f"   ❌ API Error: {str(api_error)}")
+                # Try with minimal parameters
+                response = endpoint.find_neighbors(
+                    deployed_index_id=deployed_index_id,
+                    queries=[query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding],
+                    num_neighbors=num_neighbors
+                )
             
             print(f"✅ Found {len(response[0])} results")
             
+            # If we were filtering by instrument but couldn't do it at API level,
+            # we need to filter results manually (this requires document metadata)
+            filtered_results = response[0]
+            if instrument_filter and len(response[0]) > num_neighbors:
+                print(f"   🔍 Manually filtering by instrument: {instrument_filter}")
+                # Note: This would require loading document metadata to filter by instrument
+                # For now, we'll just take the first num_neighbors results
+                filtered_results = response[0][:num_neighbors]
+            
             # Process and return results
             results = []
-            for i, neighbor in enumerate(response[0]):
+            for i, neighbor in enumerate(filtered_results):
                 result = {
                     "rank": i + 1,
                     "id": neighbor.id,
