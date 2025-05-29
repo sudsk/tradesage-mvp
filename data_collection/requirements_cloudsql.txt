@@ -1,0 +1,23 @@
+# requirements_cloudsql.txt
+# Core dependencies for Cloud SQL + pgvector setup
+
+# Database connectivity
+psycopg2-binary>=2.9.0
+pg8000>=1.31.0
+cloud-sql-python-connector[pg8000]>=1.4.0
+
+# Google Cloud
+google-cloud-aiplatform>=1.38.0
+google-auth>=2.23.0
+
+# Vector AI
+google-cloud-aiplatform[vertex]>=1.38.0
+
+# Text processing
+beautifulsoup4>=4.12.0
+html2text>=2020.1.16
+tqdm>=4.65.0
+
+# Data handling
+numpy>=1.24.0
+pandas>=2.0.0
