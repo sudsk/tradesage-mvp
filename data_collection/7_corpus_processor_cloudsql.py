@@ -411,24 +411,84 @@ def extract_text_from_item(item, instrument, source_type, file_path):
     
     content = preprocess_text(content)
     
-    # Extract date
+    # Enhanced date extraction and parsing
     date = None
-    date_fields = ["date", "publish_date", "published", "timestamp", "created_at"]
+    date_fields = ["date", "publish_date", "published", "publishedAt", "timestamp", "created_at", "date_published"]
+    
     for field in date_fields:
         if field in item and item[field]:
-            date = item[field]
+            date_str = item[field]
             break
+    else:
+        date_str = None
     
-    if date and isinstance(date, str):
+    # Parse date with multiple formats
+    parsed_date = None
+    if date_str and isinstance(date_str, str):
         try:
-            if 'T' in date:
-                date = date.split('T')[0]
-            elif '/' in date:
-                parts = date.split('/')
-                if len(parts) == 3:
-                    date = f"{parts[2]}-{parts[0]}-{parts[1]}"
-        except:
-            date = None
+            from datetime import datetime
+            
+            # Try multiple date formats
+            date_formats = [
+                "%Y-%m-%d",  # 2025-05-21
+                "%Y-%m-%dT%H:%M:%S",  # 2025-05-21T19:35:38
+                "%Y-%m-%dT%H:%M:%SZ",  # 2025-05-21T19:35:38Z
+                "%Y-%m-%dT%H:%M:%S.%f",  # 2025-05-21T19:35:38.123456
+                "%Y-%m-%dT%H:%M:%S.%fZ",  # 2025-05-21T19:35:38.123456Z
+                "%a, %d %b %Y %H:%M:%S %Z",  # Wed, 21 May 2025 19:35:38 GMT
+                "%a, %d %b %Y %H:%M:%S",  # Wed, 21 May 2025 19:35:38
+                "%d %b %Y",  # 21 May 2025
+                "%B %d, %Y",  # May 21, 2025
+                "%m/%d/%Y",  # 05/21/2025
+                "%d/%m/%Y",  # 21/05/2025
+            ]
+            
+            # Clean up the date string
+            date_str = date_str.strip()
+            
+            # Handle timezone abbreviations that Python doesn't recognize
+            if date_str.endswith(' GM'):
+                date_str = date_str.replace(' GM', ' GMT')
+            elif date_str.endswith(' UTC'):
+                date_str = date_str.replace(' UTC', '+0000')
+            
+            # Try parsing with different formats
+            for fmt in date_formats:
+                try:
+                    if fmt == "%a, %d %b %Y %H:%M:%S %Z":
+                        # Special handling for timezone
+                        if ' GMT' in date_str or ' UTC' in date_str:
+                            parsed_date = datetime.strptime(date_str.replace(' GMT', '').replace(' UTC', ''), 
+                                                           "%a, %d %b %Y %H:%M:%S")
+                        else:
+                            parsed_date = datetime.strptime(date_str, fmt)
+                    else:
+                        parsed_date = datetime.strptime(date_str, fmt)
+                    break
+                except ValueError:
+                    continue
+            
+            # If no format worked, try parsing just the date part
+            if not parsed_date and 'T' in date_str:
+                try:
+                    date_part = date_str.split('T')[0]
+                    parsed_date = datetime.strptime(date_part, "%Y-%m-%d")
+                except ValueError:
+                    pass
+            
+            # If still no luck, try extracting year-month-day with regex
+            if not parsed_date:
+                import re
+                date_match = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', date_str)
+                if date_match:
+                    try:
+                        year, month, day = date_match.groups()
+                        parsed_date = datetime(int(year), int(month), int(day))
+                    except ValueError:
+                        pass
+                        
+        except Exception as e:
+            print(f"⚠️  Could not parse date '{date_str}': {str(e)}")
     
     return {
         "id": str(uuid.uuid4()),
@@ -437,12 +497,13 @@ def extract_text_from_item(item, instrument, source_type, file_path):
         "instrument": instrument,
         "source_type": source_type,
         "file_path": file_path,
-        "date": date if date else "Unknown",
+        "date": parsed_date.strftime("%Y-%m-%d") if parsed_date else None,
         "metadata": {
             "instrument": instrument,
             "source_type": source_type,
             "has_title": bool(title),
-            "content_length": len(content)
+            "content_length": len(content),
+            "original_date_string": date_str if date_str else None
         }
     }
 
@@ -589,7 +650,12 @@ def generate_embeddings(documents, batch_size=5):
                     # Add embedding to document
                     doc_with_embedding = doc.copy()
                     doc_with_embedding['embedding'] = embedding_list
-                    doc_with_embedding['date_published'] = doc['date'] if doc['date'] != 'Unknown' else None
+                    
+                    # Fix date_published field - handle None values properly
+                    if doc['date'] and doc['date'] != "Unknown":
+                        doc_with_embedding['date_published'] = doc['date']
+                    else:
+                        doc_with_embedding['date_published'] = None
                     
                     documents_with_embeddings.append(doc_with_embedding)
                     
