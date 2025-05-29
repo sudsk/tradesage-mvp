@@ -71,9 +71,13 @@ class CloudSQLVectorDB:
     def setup_database(self):
         """Create the database schema with pgvector extension"""
         try:
-            with self.connection.cursor() as cursor:
+            # Use cursor without context manager for pg8000/Cloud SQL Connector
+            cursor = self.connection.cursor()
+            
+            try:
                 # Enable pgvector extension
                 cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                print("✅ pgvector extension enabled")
                 
                 # Create documents table
                 cursor.execute("""
@@ -85,12 +89,13 @@ class CloudSQLVectorDB:
                         source_type VARCHAR(50),
                         file_path TEXT,
                         date_published DATE,
-                        embedding vector(768),  -- text-embedding-004 dimensions
+                        embedding vector(768),
                         metadata JSONB,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
+                print("✅ Documents table created")
                 
                 # Create indexes for better performance
                 cursor.execute("""
@@ -107,27 +112,41 @@ class CloudSQLVectorDB:
                     CREATE INDEX IF NOT EXISTS idx_documents_date 
                     ON documents(date_published);
                 """)
+                print("✅ Basic indexes created")
                 
-                # Create vector index for similarity search
-                cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_documents_embedding 
-                    ON documents USING ivfflat (embedding vector_cosine_ops)
-                    WITH (lists = 100);
-                """)
+                # Try to create vector index (may fail if data doesn't exist yet)
+                try:
+                    cursor.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_documents_embedding 
+                        ON documents USING ivfflat (embedding vector_cosine_ops)
+                        WITH (lists = 100);
+                    """)
+                    print("✅ Vector index created")
+                except Exception as idx_error:
+                    print(f"⚠️  Vector index creation deferred: {str(idx_error)}")
+                    print("   (Will create after inserting data)")
                 
                 self.connection.commit()
-                print("✅ Database schema created successfully")
+                print("✅ Database schema setup completed successfully")
+                
+            finally:
+                cursor.close()
                 
         except Exception as e:
             print(f"❌ Error setting up database: {str(e)}")
-            self.connection.rollback()
+            try:
+                self.connection.rollback()
+            except:
+                pass
             raise
     
     def insert_document(self, doc_id, title, content, instrument, source_type, 
                        file_path, date_published, embedding, metadata):
         """Insert a single document with its embedding"""
         try:
-            with self.connection.cursor() as cursor:
+            cursor = self.connection.cursor()
+            
+            try:
                 cursor.execute("""
                     INSERT INTO documents 
                     (id, title, content, instrument, source_type, file_path, 
@@ -142,13 +161,19 @@ class CloudSQLVectorDB:
                     doc_id, title, content, instrument, source_type, 
                     file_path, date_published, embedding, json.dumps(metadata)
                 ))
-            
-            self.connection.commit()
-            return True
+                
+                self.connection.commit()
+                return True
+                
+            finally:
+                cursor.close()
             
         except Exception as e:
             print(f"❌ Error inserting document {doc_id}: {str(e)}")
-            self.connection.rollback()
+            try:
+                self.connection.rollback()
+            except:
+                pass
             return False
     
     def batch_insert_documents(self, documents, batch_size=50):
@@ -160,7 +185,9 @@ class CloudSQLVectorDB:
             batch = documents[i:i + batch_size]
             
             try:
-                with self.connection.cursor() as cursor:
+                cursor = self.connection.cursor()
+                
+                try:
                     for doc in batch:
                         cursor.execute("""
                             INSERT INTO documents 
@@ -178,26 +205,60 @@ class CloudSQLVectorDB:
                             doc['date_published'], doc['embedding'], 
                             json.dumps(doc['metadata'])
                         ))
-                
-                self.connection.commit()
-                total_inserted += len(batch)
+                    
+                    self.connection.commit()
+                    total_inserted += len(batch)
+                    
+                finally:
+                    cursor.close()
                 
             except Exception as e:
                 print(f"❌ Error inserting batch: {str(e)}")
-                self.connection.rollback()
+                try:
+                    self.connection.rollback()
+                except:
+                    pass
                 failed_inserts += len(batch)
+        
+        # Try to create vector index after data is inserted
+        if total_inserted > 0:
+            self._create_vector_index()
         
         print(f"✅ Inserted {total_inserted} documents, {failed_inserts} failed")
         return total_inserted
+    
+    def _create_vector_index(self):
+        """Create vector index after data is inserted"""
+        try:
+            cursor = self.connection.cursor()
+            
+            try:
+                print("🔍 Creating vector index for better search performance...")
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_documents_embedding 
+                    ON documents USING ivfflat (embedding vector_cosine_ops)
+                    WITH (lists = 100);
+                """)
+                self.connection.commit()
+                print("✅ Vector index created successfully")
+                
+            finally:
+                cursor.close()
+                
+        except Exception as e:
+            print(f"⚠️  Could not create vector index: {str(e)}")
+            print("   Search will still work, but may be slower")
     
     def semantic_search(self, query_embedding, limit=10, instrument_filter=None, 
                        source_filter=None, similarity_threshold=0.7):
         """Perform semantic search using cosine similarity"""
         try:
-            with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor = self.connection.cursor()
+            
+            try:
                 # Build query with optional filters
                 where_conditions = []
-                params = [query_embedding, limit]
+                params = []
                 
                 if instrument_filter:
                     where_conditions.append("instrument = %s")
@@ -232,13 +293,18 @@ class CloudSQLVectorDB:
                     LIMIT %s;
                 """
                 
-                # Adjust params for the query (embedding appears twice)
-                query_params = [query_embedding, query_embedding] + params[2:]
+                # Build final params list
+                final_params = [query_embedding] + params + [query_embedding, limit]
                 
-                cursor.execute(query, query_params)
+                cursor.execute(query, final_params)
                 results = cursor.fetchall()
                 
-                return [dict(row) for row in results]
+                # Convert to list of dictionaries
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in results]
+                
+            finally:
+                cursor.close()
                 
         except Exception as e:
             print(f"❌ Error performing semantic search: {str(e)}")
@@ -247,7 +313,9 @@ class CloudSQLVectorDB:
     def get_stats(self):
         """Get database statistics"""
         try:
-            with self.connection.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor = self.connection.cursor()
+            
+            try:
                 cursor.execute("""
                     SELECT 
                         COUNT(*) as total_documents,
@@ -258,7 +326,11 @@ class CloudSQLVectorDB:
                     FROM documents;
                 """)
                 
-                stats = cursor.fetchone()
+                stats_row = cursor.fetchone()
+                
+                # Convert to dictionary
+                stats_columns = [desc[0] for desc in cursor.description]
+                stats = dict(zip(stats_columns, stats_row))
                 
                 cursor.execute("""
                     SELECT instrument, COUNT(*) as count
@@ -267,12 +339,16 @@ class CloudSQLVectorDB:
                     ORDER BY count DESC;
                 """)
                 
-                instrument_counts = cursor.fetchall()
+                instrument_rows = cursor.fetchall()
+                instrument_counts = [{"instrument": row[0], "count": row[1]} for row in instrument_rows]
                 
                 return {
-                    "stats": dict(stats),
-                    "instrument_distribution": [dict(row) for row in instrument_counts]
+                    "stats": stats,
+                    "instrument_distribution": instrument_counts
                 }
+                
+            finally:
+                cursor.close()
                 
         except Exception as e:
             print(f"❌ Error getting stats: {str(e)}")
