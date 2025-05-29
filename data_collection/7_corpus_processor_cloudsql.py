@@ -177,7 +177,7 @@ class CloudSQLVectorDB:
             return False
     
     def batch_insert_documents(self, documents, batch_size=50):
-        """Insert multiple documents in batches"""
+        """Insert multiple documents in batches with proper vector formatting"""
         total_inserted = 0
         failed_inserts = 0
         
@@ -189,6 +189,9 @@ class CloudSQLVectorDB:
                 
                 try:
                     for doc in batch:
+                        # Convert embedding list to PostgreSQL vector format
+                        embedding_str = '[' + ','.join(map(str, doc['embedding'])) + ']'
+                        
                         cursor.execute("""
                             INSERT INTO documents 
                             (id, title, content, instrument, source_type, file_path, 
@@ -202,7 +205,7 @@ class CloudSQLVectorDB:
                         """, (
                             doc['id'], doc['title'], doc['content'], 
                             doc['instrument'], doc['source_type'], doc['file_path'],
-                            doc['date_published'], doc['embedding'], 
+                            doc['date_published'], embedding_str,  # Use string format for vector
                             json.dumps(doc['metadata'])
                         ))
                     
@@ -251,11 +254,14 @@ class CloudSQLVectorDB:
     
     def semantic_search(self, query_embedding, limit=10, instrument_filter=None, 
                        source_filter=None, similarity_threshold=0.7):
-        """Perform semantic search using cosine similarity"""
+        """Perform semantic search using cosine similarity with proper vector formatting"""
         try:
             cursor = self.connection.cursor()
             
             try:
+                # Convert query embedding to PostgreSQL vector format
+                query_embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
+                
                 # Build query with optional filters
                 where_conditions = []
                 params = []
@@ -270,7 +276,7 @@ class CloudSQLVectorDB:
                 
                 if similarity_threshold:
                     where_conditions.append("1 - (embedding <=> %s) >= %s")
-                    params.extend([query_embedding, similarity_threshold])
+                    params.extend([query_embedding_str, similarity_threshold])
                 
                 where_clause = ""
                 if where_conditions:
@@ -294,7 +300,7 @@ class CloudSQLVectorDB:
                 """
                 
                 # Build final params list
-                final_params = [query_embedding] + params + [query_embedding, limit]
+                final_params = [query_embedding_str] + params + [query_embedding_str, limit]
                 
                 cursor.execute(query, final_params)
                 results = cursor.fetchall()
@@ -518,7 +524,7 @@ def process_html_files(directory):
     return processed_documents
 
 def chunk_document(doc, chunk_size=512):
-    """Split document into chunks"""
+    """Split document into chunks with proper UUID generation"""
     content = doc["content"]
     paragraphs = content.split("\n\n")
     
@@ -531,16 +537,22 @@ def chunk_document(doc, chunk_size=512):
         else:
             if current_chunk:
                 chunk_doc = doc.copy()
-                chunk_doc["id"] = f"{doc['id']}_chunk_{len(chunks)}"
+                # Generate new UUID for each chunk instead of appending to existing UUID
+                chunk_doc["id"] = str(uuid.uuid4())
                 chunk_doc["content"] = current_chunk.strip()
+                chunk_doc["metadata"]["chunk_index"] = len(chunks)
+                chunk_doc["metadata"]["parent_id"] = doc["id"]
                 chunks.append(chunk_doc)
             
             current_chunk = para + "\n\n"
     
     if current_chunk:
         chunk_doc = doc.copy()
-        chunk_doc["id"] = f"{doc['id']}_chunk_{len(chunks)}"
+        # Generate new UUID for each chunk instead of appending to existing UUID  
+        chunk_doc["id"] = str(uuid.uuid4())
         chunk_doc["content"] = current_chunk.strip()
+        chunk_doc["metadata"]["chunk_index"] = len(chunks)
+        chunk_doc["metadata"]["parent_id"] = doc["id"]
         chunks.append(chunk_doc)
     
     return chunks
@@ -611,13 +623,13 @@ def create_query_function(db):
             # Generate embedding for query
             query_embedding = embedding_model.get_embeddings([query_text])[0].values
             
-            # Convert to list
+            # Convert to list (not needed for string conversion, but keep for consistency)
             if hasattr(query_embedding, 'tolist'):
                 embedding_list = query_embedding.tolist()
             else:
                 embedding_list = list(query_embedding)
             
-            # Perform search
+            # Perform search (embedding_list will be converted to string format in semantic_search)
             results = db.semantic_search(
                 query_embedding=embedding_list,
                 limit=num_results,
@@ -632,13 +644,13 @@ def create_query_function(db):
                 formatted_result = {
                     "rank": i + 1,
                     "id": result["id"],
-                    "similarity": result["similarity"],
-                    "title": result["title"],
-                    "content_preview": result["content"][:300] + "..." if len(result["content"]) > 300 else result["content"],
-                    "instrument": result["instrument"],
-                    "source_type": result["source_type"],
+                    "similarity": float(result["similarity"]) if result["similarity"] else 0.0,
+                    "title": result["title"] or "Untitled",
+                    "content_preview": result["content"][:300] + "..." if result["content"] and len(result["content"]) > 300 else result["content"] or "",
+                    "instrument": result["instrument"] or "Unknown",
+                    "source_type": result["source_type"] or "Unknown",
                     "date": str(result["date_published"]) if result["date_published"] else "Unknown",
-                    "file_path": result["file_path"]
+                    "file_path": result["file_path"] or "Unknown"
                 }
                 formatted_results.append(formatted_result)
             
