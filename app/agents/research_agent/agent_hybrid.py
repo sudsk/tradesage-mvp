@@ -5,6 +5,7 @@ from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
 from .prompt import SYSTEM_INSTRUCTION
 import json
 import asyncio
+import concurrent.futures
 from typing import Dict, Any, List
 
 class HybridResearchAgent:
@@ -51,9 +52,7 @@ class HybridResearchAgent:
         try:
             # Use hybrid research if available, otherwise fall back to basic mode
             if self.hybrid_service:
-                research_data = asyncio.run(
-                    self._hybrid_research_mode(processed_hypothesis)
-                )
+                research_data = self._run_hybrid_research(processed_hypothesis)
             else:
                 research_data = self._fallback_research_mode(processed_hypothesis)
             
@@ -78,6 +77,38 @@ class HybridResearchAgent:
                 },
                 "status": "error"
             }
+    
+    def _run_hybrid_research(self, hypothesis: str) -> Dict[str, Any]:
+        """Run hybrid research handling async/sync context properly"""
+        try:
+            # Check if we're already in an event loop
+            try:
+                loop = asyncio.get_running_loop()
+                # If we get here, we're in a running event loop
+                # Use a thread pool executor to run the async code
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(self._run_research_in_new_loop, hypothesis)
+                    return future.result(timeout=30)  # 30 second timeout
+            except RuntimeError:
+                # No running event loop, we can use asyncio.run()
+                return asyncio.run(self._hybrid_research_mode(hypothesis))
+        except Exception as e:
+            print(f"⚠️  Hybrid mode failed: {str(e)}, falling back to real-time only")
+            return self._fallback_research_mode(hypothesis)
+    
+    def _run_research_in_new_loop(self, hypothesis: str) -> Dict[str, Any]:
+        """Run research in a completely new event loop"""
+        try:
+            # Create a new event loop for this thread
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(self._hybrid_research_mode(hypothesis))
+            finally:
+                new_loop.close()
+        except Exception as e:
+            print(f"⚠️  New loop research failed: {str(e)}")
+            return self._fallback_research_mode(hypothesis)
     
     async def _hybrid_research_mode(self, hypothesis: str) -> Dict[str, Any]:
         """Use hybrid RAG + real-time research"""
@@ -132,7 +163,7 @@ class HybridResearchAgent:
             "data_sources": {
                 "rag_database": 0,
                 "real_time_market": len(market_data),
-                "real_time_news": len(news_data.get("articles", []))
+                "real_time_news": len(news_data.get("articles", []) if isinstance(news_data, dict) else [])
             },
             "merged_analysis": "Research completed using real-time data sources only.",
             "confidence_score": 0.6,  # Lower confidence without historical context
@@ -183,7 +214,7 @@ class HybridResearchAgent:
         if market_data:
             analysis_parts.append("Market Data Summary:")
             for instrument, data in market_data.items():
-                if data.get('data', {}).get('info'):
+                if isinstance(data, dict) and data.get('data', {}).get('info'):
                     info = data['data']['info']
                     price = info.get('currentPrice', 'N/A')
                     change = info.get('dayChangePercent', 0)
@@ -191,7 +222,7 @@ class HybridResearchAgent:
         
         # News summary
         news_data = research_data.get('news_data', {})
-        if news_data.get('articles'):
+        if isinstance(news_data, dict) and news_data.get('articles'):
             analysis_parts.append(f"\nNews Analysis: Found {len(news_data['articles'])} recent articles")
             for article in news_data['articles'][:3]:
                 analysis_parts.append(f"- {article.get('title', 'News update')}")
