@@ -2,6 +2,7 @@
 from typing import Dict, Any, List, TypedDict
 from langgraph.graph import StateGraph
 from app.agents.hypothesis_agent.agent import create as create_hypothesis_agent
+from app.agents.context_agent.agent import create as create_context_agent
 from app.agents.synthesis_agent.agent import create as create_synthesis_agent
 from app.agents.alert_agent.agent import create as create_alert_agent
 
@@ -26,6 +27,7 @@ class TradeSageState(TypedDict):
     mode: str
     hypothesis: str
     processed_hypothesis: str
+    context: Dict  # NEW: Context from Context Agent    
     research_data: Dict
     contradictions: List[Dict]
     confirmations: List[Dict]
@@ -47,6 +49,7 @@ def create_hybrid_graph():
     
     # Initialize agents with hybrid capability detection
     hypothesis_agent = create_hypothesis_agent()
+    context_agent = create_context_agent()    
     synthesis_agent = create_synthesis_agent()
     alert_agent = create_alert_agent()
     
@@ -87,7 +90,34 @@ def create_hybrid_graph():
             state["error"] = error_msg
             print(f"❌ {error_msg}")
             return state
-    
+
+    def context_node(state: TradeSageState) -> TradeSageState:
+        """Analyze hypothesis and provide intelligent context for other agents."""
+        try:
+            print("🧠 Analyzing hypothesis context...")
+            result = context_agent.process(state)
+            
+            if result.get("status") == "success":
+                context = result.get("context", {})
+                state["context"] = context
+                
+                # Log context summary
+                asset_info = context.get("asset_info", {})
+                print(f"   ✅ Context: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('primary_symbol', 'N/A')})")
+                print(f"      Type: {asset_info.get('asset_type', 'Unknown')} | Direction: {context.get('hypothesis_details', {}).get('direction', 'Unknown')}")
+                
+            else:
+                error_msg = result.get("error", "Context analysis failed")
+                state["error"] = error_msg
+                print(f"   ❌ Context error: {error_msg}")
+                
+            return state
+        except Exception as e:
+            error_msg = f"Context agent error: {str(e)}"
+            state["error"] = error_msg
+            print(f"❌ {error_msg}")
+            return state
+            
     def research_node(state: TradeSageState) -> TradeSageState:
         """Conduct market research using hybrid approach."""
         try:
@@ -255,13 +285,15 @@ def create_hybrid_graph():
    
     # Add nodes
     workflow.add_node("hypothesis_agent", hypothesis_node)
+    workflow.add_node("context_agent", context_node)    
     workflow.add_node("research_agent", research_node)
     workflow.add_node("contradiction_agent", contradiction_node)
     workflow.add_node("synthesis_agent", synthesis_node)
     workflow.add_node("alert_agent", alert_node)
    
     # Add edges (define the flow)
-    workflow.add_edge("hypothesis_agent", "research_agent")
+    workflow.add_edge("hypothesis_agent", "context_agent")
+    workflow.add_edge("context_agent", "research_agent")    
     workflow.add_edge("research_agent", "contradiction_agent")
     workflow.add_edge("contradiction_agent", "synthesis_agent")
     workflow.add_edge("synthesis_agent", "alert_agent")
