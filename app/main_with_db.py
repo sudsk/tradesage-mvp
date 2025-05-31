@@ -3,7 +3,8 @@ from fastapi import FastAPI, Request, Response, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import json
-from .graph import create_graph
+#from .graph import create_graph
+from .graph_hybrid import create_graph
 from .database.database import get_db
 from .database.crud import (
     HypothesisCRUD, ContradictionCRUD, ConfirmationCRUD, 
