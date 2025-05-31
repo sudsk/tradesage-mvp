@@ -50,6 +50,14 @@ class HybridContradictionAgent:
         research_data = input_data.get("research_data", {})
         
         print(f"🎯 Finding contradictions for: {processed_hypothesis}")
+
+        # Extract context from input_data
+        context = input_data.get("context", {})
+        asset_info = context.get("asset_info", {})
+        research_guidance = context.get("research_guidance", {})
+        risk_analysis = context.get("risk_analysis", {})
+        
+        print(f"🔧 Using context: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('asset_type', 'Unknown')})")
         
         try:
             # Step 1: Search for contradictory evidence in RAG database
