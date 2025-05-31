@@ -238,39 +238,122 @@ class HybridResearchAgent:
         return "\n".join(analysis_parts) if analysis_parts else "Limited research data available for analysis."
     
     def _extract_instruments(self, hypothesis: str) -> List[str]:
-        """Extract financial instruments from hypothesis"""
+        """Extract financial instruments from hypothesis with better company name mapping"""
         import re
         
         instruments = []
         
+        # Company name to ticker mapping
+        company_mappings = {
+            'apple': 'AAPL',
+            'microsoft': 'MSFT', 
+            'google': 'GOOGL',
+            'alphabet': 'GOOGL',
+            'amazon': 'AMZN',
+            'tesla': 'TSLA',
+            'nvidia': 'NVDA',
+            'meta': 'META',
+            'facebook': 'META',
+            'netflix': 'NFLX',
+            'salesforce': 'CRM',
+            'oracle': 'ORCL',
+            'adobe': 'ADBE',
+            'intel': 'INTC',
+            'amd': 'AMD',
+            'uber': 'UBER',
+            'airbnb': 'ABNB',
+            'spotify': 'SPOT',
+            'zoom': 'ZM',
+            'slack': 'WORK',
+            'twitter': 'TWTR',
+            'snap': 'SNAP',
+            'pinterest': 'PINS'
+        }
+        
+        # Check for company names first
+        hypothesis_lower = hypothesis.lower()
+        for company, ticker in company_mappings.items():
+            if company in hypothesis_lower:
+                instruments.append(ticker)
+                break  # Take the first match
+        
         # Cryptocurrency patterns
-        if re.search(r'bitcoin|btc', hypothesis.lower()):
+        if re.search(r'bitcoin|btc', hypothesis_lower):
             instruments.append('BTC-USD')
-        if re.search(r'ethereum|eth', hypothesis.lower()):
+        elif re.search(r'ethereum|eth', hypothesis_lower):
             instruments.append('ETH-USD')
         
-        # Stock patterns
-        stock_matches = re.findall(r'\$([A-Z]{1,5})', hypothesis)
-        instruments.extend(stock_matches)
+        # Explicit ticker patterns: $AAPL or (AAPL)
+        ticker_patterns = [
+            r'\$([A-Z]{2,5})',           # $AAPL
+            r'\(([A-Z]{2,5})\)',         # (AAPL) 
+            r'\b([A-Z]{2,5})\b'          # AAPL (standalone)
+        ]
         
-        # Default fallbacks
+        for pattern in ticker_patterns:
+            matches = re.findall(pattern, hypothesis)
+            for match in matches:
+                if len(match) >= 2 and match not in ['USD', 'THE', 'AND', 'FOR', 'ARE', 'WILL']:
+                    instruments.append(match)
+        
+        # Oil and commodities
+        if 'oil' in hypothesis_lower:
+            instruments.append('CL=F')  # Crude oil futures
+        elif 'gold' in hypothesis_lower:
+            instruments.append('GLD')   # Gold ETF
+        
+        # Remove duplicates
+        instruments = list(dict.fromkeys(instruments))  # Preserves order
+        
+        # Default fallbacks if nothing found
         if not instruments:
-            if 'bitcoin' in hypothesis.lower() or 'crypto' in hypothesis.lower():
+            if 'crypto' in hypothesis_lower:
                 instruments = ['BTC-USD']
-            elif 'oil' in hypothesis.lower():
-                instruments = ['CL=F']  # Crude oil futures
+            elif 'stock' in hypothesis_lower or 'market' in hypothesis_lower:
+                instruments = ['SPY']
             else:
-                instruments = ['SPY']  # Default to S&P 500
+                instruments = ['SPY']  # Ultimate fallback
         
+        print(f"🎯 Extracted instruments for '{hypothesis[:50]}...': {instruments}")
         return instruments[:2]  # Limit to prevent rate limiting
     
     def _create_news_query(self, hypothesis: str) -> str:
-        """Create targeted news search query"""
-        if 'bitcoin' in hypothesis.lower() or 'crypto' in hypothesis.lower():
-            return 'cryptocurrency bitcoin market news'
-        elif 'oil' in hypothesis.lower():
-            return 'oil price energy market OPEC'
-        elif any(term in hypothesis.lower() for term in ['stock', 'market', 'sp500']):
+        """Create targeted news search query based on the original simple hypothesis"""
+        # Use the original simple input, not the processed verbose version
+        hypothesis_lower = hypothesis.lower()
+        
+        # Company-specific queries
+        if 'apple' in hypothesis_lower:
+            return 'Apple AAPL stock earnings revenue'
+        elif 'microsoft' in hypothesis_lower:
+            return 'Microsoft MSFT stock cloud azure'
+        elif 'google' in hypothesis_lower or 'alphabet' in hypothesis_lower:
+            return 'Google Alphabet GOOGL stock advertising'
+        elif 'amazon' in hypothesis_lower:
+            return 'Amazon AMZN stock AWS ecommerce'
+        elif 'tesla' in hypothesis_lower:
+            return 'Tesla TSLA stock electric vehicles'
+        elif 'nvidia' in hypothesis_lower:
+            return 'Nvidia NVDA stock AI chips'
+        elif 'meta' in hypothesis_lower or 'facebook' in hypothesis_lower:
+            return 'Meta Facebook META stock social media'
+        
+        # Crypto queries
+        elif 'bitcoin' in hypothesis_lower or 'btc' in hypothesis_lower:
+            return 'bitcoin cryptocurrency market price'
+        elif 'ethereum' in hypothesis_lower or 'eth' in hypothesis_lower:
+            return 'ethereum cryptocurrency market price'
+        elif 'crypto' in hypothesis_lower:
+            return 'cryptocurrency market news'
+        
+        # Commodity queries  
+        elif 'oil' in hypothesis_lower:
+            return 'oil price energy market OPEC crude'
+        elif 'gold' in hypothesis_lower:
+            return 'gold price precious metals market'
+        
+        # General market
+        elif any(term in hypothesis_lower for term in ['stock', 'market', 'sp500', 'nasdaq']):
             return 'stock market financial news'
         else:
             return 'financial market news'
