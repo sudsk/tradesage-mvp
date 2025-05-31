@@ -303,10 +303,31 @@ class HybridRAGService:
         }
     
     def _extract_instruments(self, hypothesis: str) -> List[str]:
-        """Extract financial instruments from hypothesis text"""
+        """Extract financial instruments from hypothesis text with better company mapping"""
         import re
         
         instruments = []
+        
+        # Company name to ticker mapping
+        company_mappings = {
+            'apple': 'AAPL',
+            'microsoft': 'MSFT',
+            'google': 'GOOGL', 
+            'alphabet': 'GOOGL',
+            'amazon': 'AMZN',
+            'tesla': 'TSLA',
+            'nvidia': 'NVDA',
+            'meta': 'META',
+            'facebook': 'META',
+            'netflix': 'NFLX'
+        }
+        
+        # Check for company names in hypothesis
+        hypothesis_lower = hypothesis.lower()
+        for company, ticker in company_mappings.items():
+            if company in hypothesis_lower:
+                instruments.append(ticker)
+                break
         
         # Cryptocurrency patterns
         crypto_patterns = [
@@ -315,7 +336,7 @@ class HybridRAGService:
         ]
         
         for pattern in crypto_patterns:
-            if re.search(pattern, hypothesis.lower()):
+            if re.search(pattern, hypothesis_lower):
                 if 'bitcoin' in pattern or 'btc' in pattern:
                     instruments.append('BTC-USD')
                 elif 'ethereum' in pattern or 'eth' in pattern:
@@ -324,18 +345,23 @@ class HybridRAGService:
         # Stock patterns
         stock_patterns = [
             r'\$([A-Z]{1,5})',  # $AAPL
+            r'\(([A-Z]{2,5})\)', # (AAPL)
             r'\b([A-Z]{2,5})\b'  # AAPL
         ]
         
         for pattern in stock_patterns:
             matches = re.findall(pattern, hypothesis)
-            instruments.extend(matches)
+            for match in matches:
+                if len(match) >= 2 and match not in ['USD', 'THE', 'AND', 'FOR', 'ARE', 'WILL']:
+                    instruments.append(match)
         
         # Default fallbacks
         if not instruments:
-            if 'bitcoin' in hypothesis.lower() or 'crypto' in hypothesis.lower():
+            if 'bitcoin' in hypothesis_lower or 'crypto' in hypothesis_lower:
                 instruments = ['BTC-USD']
-            elif 'stock' in hypothesis.lower() or 'market' in hypothesis.lower():
+            elif 'oil' in hypothesis_lower:
+                instruments = ['CL=F']
+            elif 'stock' in hypothesis_lower or 'market' in hypothesis_lower:
                 instruments = ['SPY']
             else:
                 instruments = ['SPY']
