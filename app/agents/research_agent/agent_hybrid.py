@@ -46,8 +46,15 @@ class HybridResearchAgent:
         
         hypothesis = input_data.get("hypothesis", "")
         processed_hypothesis = input_data.get("processed_hypothesis", hypothesis)
-        
+       
         print(f"🔬 Starting hybrid research for: {processed_hypothesis}")
+
+        context = input_data.get("context", {})
+        asset_info = context.get("asset_info", {})
+        research_guidance = context.get("research_guidance", {})
+        risk_analysis = context.get("risk_analysis", {})
+        
+        print(f"🔧 Using context: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('asset_type', 'Unknown')})")
         
         try:
             # Use hybrid research if available, otherwise fall back to basic mode
