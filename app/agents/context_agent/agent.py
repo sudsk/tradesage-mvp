@@ -67,37 +67,88 @@ class ContextAgent:
             }
     
     def _analyze_hypothesis_context(self, hypothesis: str) -> Optional[Dict[str, Any]]:
-        """Use AI to analyze hypothesis and extract structured context"""
+        """Use AI to intelligently derive ALL context from hypothesis"""
         
         analysis_prompt = f"""
-        Analyze this trading hypothesis and provide comprehensive context:
+        Analyze this financial hypothesis and intelligently derive ALL context:
         
         HYPOTHESIS: "{hypothesis}"
         
-        Provide a complete analysis following the structured JSON format specified in your instructions.
-        Focus on being specific and actionable rather than generic.
+        Your task is to act as a financial expert and derive:
         
-        Ensure you identify:
-        1. The exact financial instrument and its symbol
-        2. The market sector and competitive landscape
-        3. Specific price targets and timeframes mentioned
-        4. Key risk factors and areas where contradictions might be found
-        5. Relevant search terms and data sources for research
+        1. ASSET IDENTIFICATION:
+           - What financial instrument is being discussed?
+           - What is its official trading symbol/ticker?
+           - What asset class does it belong to?
+           - What market/exchange does it trade on?
         
-        Respond with valid JSON only.
+        2. MARKET CONTEXT:
+           - What sector or industry is this in?
+           - Who are the main competitors?
+           - What are the key business drivers?
+           - What market factors affect this asset?
+        
+        3. HYPOTHESIS ANALYSIS:
+           - What is the directional prediction (bullish/bearish/neutral)?
+           - What specific price target is mentioned?
+           - What timeframe is specified?
+           - What is the implied magnitude of move?
+        
+        4. RESEARCH STRATEGY:
+           - What specific data sources would be most relevant?
+           - What key metrics should be monitored?
+           - What news categories would be important?
+           - What search terms would yield best results?
+        
+        5. RISK ASSESSMENT:
+           - What are the primary risk factors for this prediction?
+           - Where might contradictory evidence be found?
+           - What external factors could invalidate this thesis?
+           - What are the main uncertainty areas?
+        
+        IMPORTANT: Do not use any hardcoded mappings. Derive everything from your knowledge.
+        
+        Respond with ONLY valid JSON in this exact format:
+        {{
+          "asset_info": {{
+            "primary_symbol": "derived ticker symbol",
+            "asset_name": "full official name",
+            "asset_type": "stock|crypto|commodity|index|currency|bond|option|future",
+            "sector": "specific sector/industry",
+            "market": "exchange or market name",
+            "competitors": ["list", "of", "main", "competitors"],
+            "market_cap_tier": "large|mid|small|micro"
+          }},
+          "hypothesis_details": {{
+            "direction": "bullish|bearish|neutral",
+            "price_target": "number or null",
+            "current_price_estimate": "estimated current price",
+            "timeframe": "specific timeframe mentioned",
+            "confidence_level": "high|medium|low",
+            "magnitude": "percentage move implied"
+          }},
+          "research_guidance": {{
+            "primary_data_sources": ["most relevant data sources"],
+            "key_metrics": ["specific metrics to track"],
+            "search_terms": ["optimized search terms"],
+            "news_categories": ["relevant news types"],
+            "monitoring_events": ["key events to watch"],
+            "regulatory_factors": ["regulatory considerations"]
+          }},
+          "risk_analysis": {{
+            "primary_risks": ["main risk factors"],
+            "contradiction_areas": ["where to find opposing views"],
+            "sensitivity_factors": ["what this asset is sensitive to"],
+            "uncertainty_areas": ["areas of high uncertainty"],
+            "external_dependencies": ["external factors that matter"]
+          }},
+          "context_summary": "comprehensive summary of context and key considerations"
+        }}
         """
         
         try:
             response = self.model.generate_content(analysis_prompt)
-            context_data = self._parse_ai_context_response(response.text)
-            
-            # Validate and enhance the context
-            if context_data:
-                context_data = self._validate_and_enhance_context(context_data, hypothesis)
-                return context_data
-            
-            return None
-            
+            return self._parse_ai_context_response(response.text)
         except Exception as e:
             print(f"❌ AI context analysis failed: {str(e)}")
             return None
