@@ -1,4 +1,4 @@
-# app/services/hybrid_rag_service.py
+# app/services/hybrid_rag_service.py - Fixed for FastAPI compatibility
 import asyncio
 import json
 import os
@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import vertexai
 from vertexai.language_models import TextEmbeddingModel
-from google.cloud.sql.connector import Connector
 
 # Configuration
 PROJECT_ID = "tradesage-mvp"
@@ -14,7 +13,7 @@ REGION = "us-central1"
 INSTANCE_NAME = "agentic-db"
 DATABASE_NAME = "tradesage_db"
 DB_USER = "postgres"
-DB_PASSWORD = "your-secure-password"  # Update with your password
+DB_PASSWORD = os.getenv("DB_PASSWORD", "your-secure-password")
 
 class HybridRAGService:
     """
@@ -29,8 +28,12 @@ class HybridRAGService:
         self.region = REGION
         
         # Initialize Vertex AI
-        vertexai.init(project=PROJECT_ID, location=REGION)
-        self.embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
+        try:
+            vertexai.init(project=PROJECT_ID, location=REGION)
+            self.embedding_model = TextEmbeddingModel.from_pretrained("text-embedding-004")
+        except Exception as e:
+            print(f"⚠️  Vertex AI initialization failed: {str(e)}")
+            self.embedding_model = None
         
         # Database connection
         self.connector = None
@@ -41,13 +44,14 @@ class HybridRAGService:
         self._initialize_real_time_services()
         
         print("✅ Hybrid RAG Service initialized")
-        print(f"   - Vector database: Connected to {INSTANCE_NAME}")
+        print(f"   - Vector database: {'Connected' if self.connection else 'Failed'}")
         print(f"   - Real-time APIs: Ready")
-        print(f"   - Embedding model: text-embedding-004")
+        print(f"   - Embedding model: {'Available' if self.embedding_model else 'Failed'}")
     
     def _connect_to_database(self):
         """Connect to the Cloud SQL vector database"""
         try:
+            from google.cloud.sql.connector import Connector
             self.connector = Connector()
             self.connection = self.connector.connect(
                 f"{self.project_id}:{self.region}:{INSTANCE_NAME}",
@@ -89,25 +93,14 @@ class HybridRAGService:
         """
         print(f"🔍 Starting hybrid research for: {hypothesis}")
         
-        # Parallel execution of RAG and real-time queries
-        tasks = [
-            self._rag_search(hypothesis),
-            self._real_time_search(hypothesis, instruments or [])
-        ]
-        
         try:
-            rag_results, real_time_results = await asyncio.gather(*tasks, return_exceptions=True)
+            # Step 1: Search for data in RAG database
+            rag_results = await self._rag_search(hypothesis)
             
-            # Handle any exceptions
-            if isinstance(rag_results, Exception):
-                print(f"⚠️  RAG search failed: {str(rag_results)}")
-                rag_results = {"historical_insights": [], "error": str(rag_results)}
+            # Step 2: Fetch real-time data
+            real_time_results = await self._real_time_search(hypothesis, instruments or [])
             
-            if isinstance(real_time_results, Exception):
-                print(f"⚠️  Real-time search failed: {str(real_time_results)}")
-                real_time_results = {"market_data": {}, "news_data": {}, "error": str(real_time_results)}
-            
-            # Merge and prioritize results
+            # Step 3: Merge and prioritize results
             merged_results = self._merge_results(rag_results, real_time_results, hypothesis)
             
             print(f"✅ Hybrid research completed")
@@ -123,13 +116,14 @@ class HybridRAGService:
                 "historical_insights": [],
                 "market_data": {},
                 "news_data": {},
-                "merged_analysis": "Research failed due to technical error"
+                "merged_analysis": "Research failed due to technical error",
+                "status": "error"
             }
     
     async def _rag_search(self, hypothesis: str, limit: int = 10) -> Dict[str, Any]:
         """Search the historical RAG database"""
-        if not self.connection:
-            return {"historical_insights": [], "error": "Database not connected"}
+        if not self.connection or not self.embedding_model:
+            return {"historical_insights": [], "error": "Database or embedding service not available"}
         
         try:
             print("📚 Searching RAG database...")
@@ -254,15 +248,16 @@ class HybridRAGService:
         # Start with real-time data if query needs current info
         if is_breaking_news_query and real_time_results.get("news_data"):
             analysis_sections.append("🚨 **Latest Developments:**")
-            if "articles" in real_time_results["news_data"]:
-                for article in real_time_results["news_data"]["articles"][:3]:
+            news_data = real_time_results["news_data"]
+            if isinstance(news_data, dict) and "articles" in news_data:
+                for article in news_data["articles"][:3]:
                     analysis_sections.append(f"- {article.get('title', 'News update')}")
         
         # Add market data context
         if real_time_results.get("market_data"):
             analysis_sections.append("📊 **Current Market Data:**")
             for instrument, data in real_time_results["market_data"].items():
-                if data.get("data", {}).get("info"):
+                if isinstance(data, dict) and data.get("data", {}).get("info"):
                     info = data["data"]["info"]
                     price = info.get("currentPrice", "N/A")
                     change = info.get("dayChangePercent", 0)
@@ -285,7 +280,7 @@ class HybridRAGService:
         if real_time_results.get("market_data") and not any("error" in str(v) for v in real_time_results["market_data"].values()):
             confidence_factors.append(0.3)  # 30% weight for current market data
         
-        if real_time_results.get("news_data") and real_time_results["news_data"].get("articles"):
+        if real_time_results.get("news_data") and isinstance(real_time_results["news_data"], dict) and real_time_results["news_data"].get("articles"):
             confidence_factors.append(0.3)  # 30% weight for recent news
         
         overall_confidence = sum(confidence_factors) if confidence_factors else 0.1
@@ -299,7 +294,7 @@ class HybridRAGService:
                 "data_sources": {
                     "rag_database": len(rag_results.get("historical_insights", [])),
                     "real_time_market": len(real_time_results.get("market_data", {})),
-                    "real_time_news": len(real_time_results.get("news_data", {}).get("articles", []))
+                    "real_time_news": len(real_time_results.get("news_data", {}).get("articles", []) if isinstance(real_time_results.get("news_data"), dict) else [])
                 },
                 "confidence_score": min(overall_confidence, 1.0),
                 "timestamp": datetime.now().isoformat()
