@@ -63,6 +63,7 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
             "mode": mode,
             "hypothesis": "",
             "processed_hypothesis": "",
+            "context": {},
             "research_data": {},
             "contradictions": [],
             "synthesis": "",
