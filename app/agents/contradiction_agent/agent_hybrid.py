@@ -120,6 +120,103 @@ class HybridContradictionAgent:
             print(f"⚠️  New loop search failed: {str(e)}")
             return []
     
+    def _clean_rag_content(self, raw_content: str) -> str:
+        """Clean content from RAG database to make it suitable for contradictions"""
+        if not raw_content:
+            return ""
+        
+        # Remove image markdown and URLs
+        content = re.sub(r'!\[.*?\]\(.*?\)', '', raw_content)
+        content = re.sub(r'https?://[^\s\)]+', '', content)
+        
+        # Remove empty markdown links
+        content = re.sub(r'\[\]\([^\)]*\)', '', content)
+        
+        # Remove excessive whitespace
+        content = ' '.join(content.split())
+        
+        # Extract meaningful text from headlines/titles
+        # Look for actual content after cleaning
+        sentences = [s.strip() for s in content.split('.') if len(s.strip()) > 20]
+        
+        if sentences:
+            # Take the first meaningful sentence
+            clean_sentence = sentences[0]
+            # Remove any remaining markdown artifacts
+            clean_sentence = re.sub(r'[\*#]+', '', clean_sentence)
+            return clean_sentence.strip()
+        
+        return ""
+    
+    def _is_relevant_to_hypothesis(self, content: str, hypothesis: str) -> bool:
+        """Check if content is relevant to the current hypothesis"""
+        if not content or not hypothesis:
+            return False
+        
+        hypothesis_lower = hypothesis.lower()
+        content_lower = content.lower()
+        
+        # Extract key terms from hypothesis
+        hypothesis_terms = set()
+        
+        # Company names and tickers
+        if 'apple' in hypothesis_lower or 'aapl' in hypothesis_lower:
+            hypothesis_terms.update(['apple', 'aapl', 'iphone', 'ios', 'mac'])
+        elif 'microsoft' in hypothesis_lower or 'msft' in hypothesis_lower:
+            hypothesis_terms.update(['microsoft', 'msft', 'windows', 'azure'])
+        elif 'bitcoin' in hypothesis_lower or 'btc' in hypothesis_lower:
+            hypothesis_terms.update(['bitcoin', 'btc'])
+        elif 'oil' in hypothesis_lower:
+            hypothesis_terms.update(['oil', 'crude', 'petroleum', 'energy'])
+        
+        # Check if any hypothesis terms appear in content
+        for term in hypothesis_terms:
+            if term in content_lower:
+                return True
+        
+        # If no specific terms match, reject crypto content for non-crypto hypothesis
+        crypto_terms = ['bitcoin', 'ethereum', 'crypto', 'defi', 'nft', 'blockchain']
+        is_crypto_content = any(term in content_lower for term in crypto_terms)
+        is_crypto_hypothesis = any(term in hypothesis_lower for term in ['bitcoin', 'crypto', 'ethereum'])
+        
+        if is_crypto_content and not is_crypto_hypothesis:
+            return False
+        
+        return True
+    
+    def _generate_contextual_contradiction(self, content: str, hypothesis: str) -> dict:
+        """Generate a contextual contradiction from cleaned content"""
+        
+        # Extract the main point from the content
+        clean_content = self._clean_rag_content(content)
+        
+        if not clean_content or not self._is_relevant_to_hypothesis(clean_content, hypothesis):
+            return None
+        
+        # Create a contradiction based on the cleaned content
+        if len(clean_content) > 200:
+            quote = clean_content[:200] + "..."
+        else:
+            quote = clean_content
+        
+        # Generate contextual reason based on hypothesis
+        if 'apple' in hypothesis.lower() or 'aapl' in hypothesis.lower():
+            reason = "This development could impact Apple's market position and limit its ability to reach the projected price target."
+        elif 'bitcoin' in hypothesis.lower() or 'btc' in hypothesis.lower():
+            reason = "This market development could create headwinds for Bitcoin's price appreciation to the target level."
+        elif 'oil' in hypothesis.lower():
+            reason = "This factor could influence oil market dynamics and prevent the projected price increase."
+        else:
+            reason = "This market development could challenge the underlying assumptions of the hypothesis."
+        
+        return {
+            "quote": quote,
+            "reason": reason,
+            "source": "Market Intelligence",
+            "strength": "Medium",
+            "evidence_type": "rag_processed"
+        }
+
     async def _search_contradictory_evidence(self, hypothesis: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Search the historical RAG database"""
         if not self.hybrid_service:
@@ -141,14 +238,10 @@ class HybridContradictionAgent:
                     for insight in result["historical_insights"]:
                         # Filter for potentially contradictory content
                         if self._is_potentially_contradictory(insight["full_content"], hypothesis):
-                            all_evidence.append({
-                                "quote": insight["content_preview"],
-                                "source": f"{insight['source']} - {insight['instrument']}",
-                                "date": insight["date"],
-                                "similarity": insight["similarity"],
-                                "strength": self._assess_contradiction_strength(insight["full_content"], hypothesis),
-                                "evidence_type": "historical_data"
-                            })
+                            # Clean and process the content
+                            cleaned_contradiction = self._generate_contextual_contradiction(insight["full_content"], hypothesis)
+                            if cleaned_contradiction:
+                                all_evidence.append(cleaned_contradiction)
                             
             except Exception as e:
                 print(f"   ⚠️  RAG search failed for query '{query}': {str(e)}")
@@ -343,7 +436,7 @@ class HybridContradictionAgent:
             return self._parse_ai_contradictions(response.text, is_crypto)
         except Exception as e:
             print(f"❌ AI contradiction generation failed: {str(e)}")
-            return self._get_fallback_contradictions(hypothesis)
+            return []  # Return empty list, will use fallbacks later
     
     def _create_crypto_contradiction_prompt(self, hypothesis: str, research_data: Dict, evidence: List[Dict]) -> str:
         """Create specialized prompt for cryptocurrency contradictions"""
@@ -454,6 +547,13 @@ class HybridContradictionAgent:
             item["priority"] = self._calculate_priority(item, source_type="ai")
             all_contradictions.append(item)
         
+        # If we don't have enough contradictions, add fallbacks
+        if len(all_contradictions) < 3:
+            fallback_contradictions = self._get_fallback_contradictions_list()
+            for item in fallback_contradictions:
+                item["priority"] = self._calculate_priority(item, source_type="fallback")
+                all_contradictions.append(item)
+        
         # Sort by priority (higher is better)
         all_contradictions.sort(key=lambda x: x.get("priority", 0), reverse=True)
         
@@ -469,8 +569,10 @@ class HybridContradictionAgent:
         # Base priority by source type
         if source_type == "evidence":
             priority += 0.6  # Historical evidence gets higher base score
-        else:
+        elif source_type == "ai":
             priority += 0.4  # AI-generated gets lower base score
+        else:  # fallback
+            priority += 0.3  # Fallback gets lowest base score
         
         # Strength modifier
         strength = contradiction.get("strength", "Medium").lower()
@@ -540,8 +642,49 @@ class HybridContradictionAgent:
         return analysis.strip()
     
     def _get_fallback_contradictions(self, hypothesis: str) -> List[Dict[str, Any]]:
-        """Get fallback contradictions if all else fails"""
-        if 'bitcoin' in hypothesis.lower() or 'btc' in hypothesis.lower():
+        """Get fallback contradictions if all else fails - backwards compatibility"""
+        return self._get_fallback_contradictions_list(hypothesis)
+    
+    def _get_fallback_contradictions_list(self, hypothesis: str = "") -> List[Dict[str, Any]]:
+        """Get intelligent fallback contradictions based on hypothesis analysis"""
+        
+        hypothesis_lower = hypothesis.lower() if hypothesis else ""
+        
+        # Apple-specific contradictions
+        if 'apple' in hypothesis_lower or 'aapl' in hypothesis_lower:
+            return [
+                {
+                    "quote": "Apple's iPhone sales in China have declined due to increased competition from domestic brands and regulatory restrictions.",
+                    "reason": "China represents approximately 20% of Apple's revenue, and market share loss could limit reaching the price target.",
+                    "source": "China Market Analysis",
+                    "strength": "Strong",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "The global smartphone market has reached saturation with declining year-over-year growth rates.",
+                    "reason": "Market saturation in developed countries creates structural headwinds for Apple's core iPhone business.",
+                    "source": "Industry Analysis",
+                    "strength": "Strong",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "Apple's current valuation metrics suggest the stock is trading at premium levels compared to historical averages.",
+                    "reason": "Reaching higher price targets would require even more elevated valuation multiples that may not be sustainable.",
+                    "source": "Valuation Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "Rising interest rates typically lead to multiple compression for high-valuation technology stocks.",
+                    "reason": "Elevated interest rates could pressure growth stock valuations and limit price appreciation.",
+                    "source": "Monetary Policy Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                }
+            ]
+        
+        # Bitcoin-specific contradictions
+        elif 'bitcoin' in hypothesis_lower or 'btc' in hypothesis_lower:
             return [
                 {
                     "quote": "Regulatory uncertainty continues to pose significant risks to Bitcoin adoption and price stability.",
@@ -551,23 +694,65 @@ class HybridContradictionAgent:
                     "evidence_type": "fallback"
                 },
                 {
-                    "quote": "Bitcoin's historical volatility shows 80-90% drawdowns are common, potentially preventing sustained price appreciation.",
-                    "reason": "Extreme volatility patterns suggest difficulty maintaining high price levels.",
+                    "quote": "Bitcoin has historically experienced 80-90% drawdowns after major bull runs.",
+                    "reason": "Extreme volatility patterns suggest difficulty maintaining high price levels over time.",
                     "source": "Technical Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "Macroeconomic tightening cycles typically pressure speculative assets like Bitcoin.",
+                    "reason": "Current monetary policy conditions may not support rapid price appreciation to target levels.",
+                    "source": "Macroeconomic Analysis",
                     "strength": "Medium",
                     "evidence_type": "fallback"
                 }
             ]
         
-        return [
-            {
-                "quote": "Market conditions remain uncertain with potential for significant volatility.",
-                "reason": "Economic uncertainty creates challenges for sustained price appreciation.",
-                "source": "Market Analysis",
-                "strength": "Medium",
-                "evidence_type": "fallback"
-            }
-        ]
+        # Oil-specific contradictions
+        elif 'oil' in hypothesis_lower:
+            return [
+                {
+                    "quote": "Global oil demand growth is slowing as electric vehicle adoption accelerates and energy efficiency improves.",
+                    "reason": "The energy transition could reduce long-term demand growth and limit price appreciation potential.",
+                    "source": "Energy Transition Analysis",
+                    "strength": "Strong",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "OPEC+ production capacity remains significant and could increase output if prices rise substantially.",
+                    "reason": "Increased production from major oil producers could cap price increases and prevent sustained higher levels.",
+                    "source": "OPEC Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                }
+            ]
+        
+        # Generic contradictions for other assets
+        else:
+            return [
+                {
+                    "quote": "Market volatility and economic uncertainty could prevent the projected price target from being achieved within the specified timeframe.",
+                    "reason": "Current market conditions and external economic factors often impact price movements more than fundamental analysis suggests.",
+                    "source": "Market Risk Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "The target price may represent a significant premium to current valuation metrics and historical trading ranges.",
+                    "reason": "Achieving substantial price appreciation requires sustained fundamental improvements and favorable market conditions.",
+                    "source": "Valuation Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                },
+                {
+                    "quote": "The specified timeframe may be too aggressive given current market dynamics and typical price movement patterns.",
+                    "reason": "Market timing predictions are notoriously difficult, and external factors can significantly delay expected price movements.",
+                    "source": "Timing Analysis",
+                    "strength": "Medium",
+                    "evidence_type": "fallback"
+                }
+            ]
 
 def create():
     """Create and return a hybrid contradiction agent instance"""
