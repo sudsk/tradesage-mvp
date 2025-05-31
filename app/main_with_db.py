@@ -69,7 +69,10 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
             "synthesis": "",
             "alerts": [],
             "final_response": "",
-            "error": ""
+            "error": "",
+            "data_sources": {},
+            "confidence_score": 0.0,
+            "research_method": ""
         }
         
         # Handle different modes
