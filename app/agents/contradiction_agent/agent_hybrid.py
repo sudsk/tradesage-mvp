@@ -7,6 +7,8 @@ import json
 import re
 import asyncio
 from typing import Dict, Any, List
+import concurrent.futures
+import threading
 
 class HybridContradictionAgent:
     """Enhanced Contradiction Agent that uses RAG database to find opposing evidence"""
@@ -20,7 +22,7 @@ class HybridContradictionAgent:
                 system_instruction=SYSTEM_INSTRUCTION
             )
             
-            # Initialize hybrid RAG service for contradiction research
+            # Initialize hybrid RAG service
             self._initialize_hybrid_service()
             
         except Exception as e:
@@ -39,7 +41,7 @@ class HybridContradictionAgent:
             self.hybrid_service = None
     
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Find contradictions using both RAG research and AI analysis"""
+        """Find contradictions using both RAG and AI analysis"""
         if not self.model:
             return {"error": "Model not initialized"}
         
@@ -53,9 +55,8 @@ class HybridContradictionAgent:
             # Step 1: Search for contradictory evidence in RAG database
             contradiction_evidence = []
             if self.hybrid_service:
-                contradiction_evidence = asyncio.run(
-                    self._search_contradictory_evidence(processed_hypothesis)
-                )
+                # Run async code in a separate thread to avoid event loop conflicts
+                contradiction_evidence = self._run_async_search(processed_hypothesis)
             
             # Step 2: Generate AI-based contradictions
             ai_contradictions = self._generate_ai_contradictions(
@@ -87,12 +88,44 @@ class HybridContradictionAgent:
                 "status": "error_fallback"
             }
     
-    async def _search_contradictory_evidence(self, hypothesis: str) -> List[Dict[str, Any]]:
-        """Search RAG database for evidence that contradicts the hypothesis"""
+    def _run_async_search(self, hypothesis: str) -> List[Dict[str, Any]]:
+        """Run async search in a thread pool to avoid event loop conflicts"""
+        try:
+            # Check if we're already in an event loop
+            try:
+                loop = asyncio.get_running_loop()
+                # If we get here, we're in a running event loop
+                # Use a thread pool executor to run the async code
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(self._run_search_in_new_loop, hypothesis)
+                    return future.result(timeout=30)  # 30 second timeout
+            except RuntimeError:
+                # No running event loop, we can use asyncio.run()
+                return asyncio.run(self._search_contradictory_evidence(hypothesis))
+        except Exception as e:
+            print(f"⚠️  RAG search failed: {str(e)}")
+            return []
+    
+    def _run_search_in_new_loop(self, hypothesis: str) -> List[Dict[str, Any]]:
+        """Run search in a completely new event loop"""
+        try:
+            # Create a new event loop for this thread
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(self._search_contradictory_evidence(hypothesis))
+            finally:
+                new_loop.close()
+        except Exception as e:
+            print(f"⚠️  New loop search failed: {str(e)}")
+            return []
+    
+    async def _search_contradictory_evidence(self, hypothesis: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search the historical RAG database"""
         if not self.hybrid_service:
             return []
         
-        print("🔍 Searching RAG database for contradictory evidence...")
+        print("📚 Searching RAG database for contradictory evidence...")
         
         # Create contradiction-focused search queries
         contradiction_queries = self._create_contradiction_queries(hypothesis)
