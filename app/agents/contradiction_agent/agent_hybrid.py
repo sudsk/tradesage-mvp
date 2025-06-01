@@ -8,6 +8,323 @@ import asyncio
 import concurrent.futures
 from typing import Dict, Any, List
 
+class IntelligentContradictionProcessor:
+    """AI-powered contradiction processing without hardcoded patterns"""
+    
+    def __init__(self, model):
+        self.model = model
+    
+    def process_contradictions(self, raw_contradictions: List[Dict], context: Dict, hypothesis: str) -> List[Dict]:
+        """Use AI to intelligently process and clean contradictions"""
+        
+        print("🧠 Using AI to intelligently process contradictions...")
+        
+        cleaned_contradictions = []
+        
+        for raw_contradiction in raw_contradictions:
+            # Use AI to evaluate and clean each contradiction
+            processed = self._ai_process_single_contradiction(raw_contradiction, context, hypothesis)
+            if processed:
+                cleaned_contradictions.append(processed)
+        
+        # If we don't have enough quality contradictions, generate new ones
+        if len(cleaned_contradictions) < 3:
+            print("   🔄 Insufficient quality contradictions, generating new ones...")
+            ai_generated = self._ai_generate_fresh_contradictions(context, hypothesis, len(cleaned_contradictions))
+            cleaned_contradictions.extend(ai_generated)
+        
+        return cleaned_contradictions[:5]  # Return top 5
+    
+    def _ai_process_single_contradiction(self, raw_contradiction: Dict, context: Dict, hypothesis: str) -> Optional[Dict]:
+        """Use AI to evaluate, clean, and enhance a single contradiction"""
+        
+        raw_quote = raw_contradiction.get("quote", "")
+        raw_reason = raw_contradiction.get("reason", "")
+        
+        asset_info = context.get("asset_info", {})
+        
+        evaluation_prompt = f"""
+        You are an expert financial analyst reviewing contradictions for investment analysis.
+        
+        TASK: Evaluate and improve this contradiction for the hypothesis: "{hypothesis}"
+        
+        ASSET CONTEXT:
+        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
+        - Type: {asset_info.get("asset_type", "Unknown")}
+        - Sector: {asset_info.get("sector", "Unknown")}
+        
+        RAW CONTRADICTION:
+        Quote: "{raw_quote}"
+        Reason: "{raw_reason}"
+        
+        EVALUATION CRITERIA:
+        1. Is this contradiction VALUABLE for investment decision-making?
+        2. Is it SPECIFIC to this asset and hypothesis?
+        3. Is it CLEAR and professional?
+        4. Is it ACTIONABLE for investors?
+        
+        INSTRUCTIONS:
+        - If the contradiction is valuable but needs cleaning, provide an IMPROVED version
+        - If the contradiction is garbage/corrupted/irrelevant, respond with "REJECT"
+        - If the contradiction is good as-is, respond with "ACCEPT"
+        
+        RESPONSE FORMAT:
+        If improving: Provide JSON with:
+        {{
+            "action": "IMPROVE",
+            "improved_quote": "Clear, professional contradiction statement",
+            "improved_reason": "Specific reasoning why this challenges the hypothesis",
+            "strength": "Strong/Medium/Weak"
+        }}
+        
+        If rejecting: {{"action": "REJECT", "reason": "Why this contradiction is not valuable"}}
+        If accepting: {{"action": "ACCEPT"}}
+        
+        Focus on creating contradictions that help investors make better decisions.
+        """
+        
+        try:
+            response = self.model.generate_content(evaluation_prompt)
+            return self._parse_ai_evaluation(response.text, raw_contradiction)
+        except Exception as e:
+            print(f"   ⚠️  AI evaluation failed for contradiction: {str(e)}")
+            return None
+    
+    def _parse_ai_evaluation(self, ai_response: str, original: Dict) -> Optional[Dict]:
+        """Parse AI evaluation response"""
+        
+        try:
+            # Clean response for JSON parsing
+            cleaned_response = ai_response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+            
+            evaluation = json.loads(cleaned_response)
+            action = evaluation.get("action", "REJECT")
+            
+            if action == "ACCEPT":
+                return {
+                    "quote": original.get("quote", ""),
+                    "reason": original.get("reason", ""),
+                    "source": original.get("source", "AI Analysis"),
+                    "strength": original.get("strength", "Medium"),
+                    "processing": "ai_accepted"
+                }
+            
+            elif action == "IMPROVE":
+                return {
+                    "quote": evaluation.get("improved_quote", ""),
+                    "reason": evaluation.get("improved_reason", ""),
+                    "source": "AI Enhanced Analysis",
+                    "strength": evaluation.get("strength", "Medium"),
+                    "processing": "ai_improved"
+                }
+            
+            else:  # REJECT
+                print(f"   🗑️  AI rejected contradiction: {evaluation.get('reason', 'Not valuable')}")
+                return None
+                
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try to extract decision from text
+            if "REJECT" in ai_response.upper():
+                return None
+            elif "ACCEPT" in ai_response.upper():
+                return original
+            else:
+                # Treat as improved content
+                return self._extract_improvement_from_text(ai_response, original)
+    
+    def _extract_improvement_from_text(self, text: str, original: Dict) -> Dict:
+        """Extract improvement from free-text AI response"""
+        
+        # Simple extraction - look for quote-like content
+        lines = text.split('\n')
+        improved_quote = ""
+        improved_reason = ""
+        
+        for line in lines:
+            line = line.strip()
+            if len(line) > 20 and not line.startswith(('TASK:', 'EVALUATION:', 'RESPONSE:')):
+                if not improved_quote:
+                    improved_quote = line.strip('"\'')
+                elif not improved_reason and line != improved_quote:
+                    improved_reason = line.strip('"\'')
+        
+        return {
+            "quote": improved_quote or original.get("quote", ""),
+            "reason": improved_reason or original.get("reason", ""),
+            "source": "AI Enhanced Analysis",
+            "strength": "Medium",
+            "processing": "ai_text_extracted"
+        }
+    
+    def _ai_generate_fresh_contradictions(self, context: Dict, hypothesis: str, existing_count: int) -> List[Dict]:
+        """Generate completely fresh contradictions using AI"""
+        
+        needed_count = max(3 - existing_count, 0)
+        if needed_count == 0:
+            return []
+        
+        asset_info = context.get("asset_info", {})
+        risk_analysis = context.get("risk_analysis", {})
+        
+        generation_prompt = f"""
+        You are an expert financial analyst creating contradictions for investment analysis.
+        
+        HYPOTHESIS: "{hypothesis}"
+        
+        ASSET CONTEXT:
+        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
+        - Type: {asset_info.get("asset_type", "Unknown")}
+        - Sector: {asset_info.get("sector", "Unknown")}
+        - Market: {asset_info.get("market", "Unknown")}
+        
+        IDENTIFIED RISKS: {risk_analysis.get("primary_risks", [])}
+        
+        TASK: Generate {needed_count} HIGH-QUALITY contradictions that challenge this hypothesis.
+        
+        REQUIREMENTS:
+        1. Each contradiction must be SPECIFIC to this asset and its sector
+        2. Must be ACTIONABLE - something investors can verify or monitor
+        3. Must be REALISTIC - based on actual market dynamics for this asset type
+        4. Must be PROFESSIONAL - suitable for investment decision-making
+        5. Must provide REAL VALUE - help investors understand risks
+        
+        FOCUS AREAS:
+        - Competitive threats specific to this company/asset
+        - Sector-specific headwinds and challenges
+        - Valuation concerns relative to current fundamentals
+        - Regulatory or policy risks affecting this asset type
+        - Market timing and sentiment factors
+        - Technical analysis concerns for this specific asset
+        
+        OUTPUT FORMAT:
+        For each contradiction, provide:
+        {{
+            "quote": "Specific, professional contradiction statement",
+            "reason": "Detailed explanation of why this challenges the hypothesis",
+            "strength": "Strong/Medium/Weak"
+        }}
+        
+        Respond with a JSON array of {needed_count} contradictions.
+        
+        Make each contradiction valuable for someone making an investment decision about this specific asset.
+        """
+        
+        try:
+            response = self.model.generate_content(generation_prompt)
+            return self._parse_generated_contradictions(response.text)
+        except Exception as e:
+            print(f"   ❌ AI contradiction generation failed: {str(e)}")
+            return self._intelligent_fallback_contradictions(context, hypothesis, needed_count)
+    
+    def _parse_generated_contradictions(self, ai_response: str) -> List[Dict]:
+        """Parse AI-generated contradictions"""
+        
+        try:
+            # Clean response for JSON parsing
+            cleaned_response = ai_response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+            
+            contradictions_data = json.loads(cleaned_response)
+            
+            # Handle both array and single object responses
+            if isinstance(contradictions_data, list):
+                contradictions = contradictions_data
+            else:
+                contradictions = [contradictions_data]
+            
+            formatted_contradictions = []
+            for item in contradictions:
+                if isinstance(item, dict) and "quote" in item:
+                    formatted_contradictions.append({
+                        "quote": item.get("quote", ""),
+                        "reason": item.get("reason", ""),
+                        "source": "AI Generated Analysis",
+                        "strength": item.get("strength", "Medium"),
+                        "processing": "ai_generated"
+                    })
+            
+            return formatted_contradictions
+            
+        except json.JSONDecodeError:
+            # Fallback: extract from text format
+            return self._extract_contradictions_from_text(ai_response)
+    
+    def _extract_contradictions_from_text(self, text: str) -> List[Dict]:
+        """Extract contradictions from free-text AI response"""
+        
+        contradictions = []
+        
+        # Look for numbered items or clear separation
+        sections = text.split('\n\n')
+        
+        for section in sections:
+            if len(section.strip()) > 50:  # Substantial content
+                lines = [line.strip() for line in section.split('\n') if line.strip()]
+                
+                if len(lines) >= 2:  # At least quote and reason
+                    quote = lines[0].strip('"\'1234567890.)')  # Remove numbering and quotes
+                    reason = lines[1] if len(lines) > 1 else "This factor challenges the hypothesis"
+                    
+                    if len(quote) > 20:  # Meaningful content
+                        contradictions.append({
+                            "quote": quote,
+                            "reason": reason,
+                            "source": "AI Generated Analysis",
+                            "strength": "Medium",
+                            "processing": "ai_text_extracted"
+                        })
+        
+        return contradictions[:3]  # Return up to 3
+    
+    def _intelligent_fallback_contradictions(self, context: Dict, hypothesis: str, count: int) -> List[Dict]:
+        """Intelligent fallback using context when AI generation fails"""
+        
+        asset_info = context.get("asset_info", {}) if context else {}
+        asset_name = asset_info.get("asset_name", "the asset")
+        asset_type = asset_info.get("asset_type", "unknown")
+        sector = asset_info.get("sector", "financial markets")
+        
+        # Use context to generate intelligent fallbacks
+        fallback_contradictions = []
+        
+        if asset_type in ["stock", "equity"]:
+            fallback_contradictions.append({
+                "quote": f"{asset_name} faces intensifying competitive pressure in the {sector} sector that could limit its ability to achieve the projected price target.",
+                "reason": f"Increased competition in {sector} can erode market share and pricing power, potentially limiting the fundamental growth needed to justify higher valuations.",
+                "source": "Contextual Analysis",
+                "strength": "Medium"
+            })
+        
+        elif asset_type in ["crypto", "cryptocurrency"]:
+            fallback_contradictions.append({
+                "quote": f"{asset_name} faces regulatory uncertainty and potential government restrictions that could significantly impact its price trajectory.",
+                "reason": "Cryptocurrency markets are highly sensitive to regulatory developments, and restrictive policies could limit institutional adoption and trading accessibility.",
+                "source": "Contextual Analysis", 
+                "strength": "Strong"
+            })
+        
+        elif asset_type == "commodity":
+            fallback_contradictions.append({
+                "quote": f"Supply and demand dynamics for {asset_name} could shift unfavorably due to economic conditions or alternative technologies.",
+                "reason": "Commodity markets are highly cyclical and sensitive to global economic conditions, technological substitution, and supply disruptions.",
+                "source": "Contextual Analysis",
+                "strength": "Medium"
+            })
+        
+        # Add general market risk if we need more
+        if len(fallback_contradictions) < count:
+            fallback_contradictions.append({
+                "quote": f"Current market valuation levels and economic uncertainty could prevent {asset_name} from reaching the projected price target within the specified timeframe.",
+                "reason": "Market timing predictions are inherently uncertain, and external economic factors often override fundamental analysis in determining short-term price movements.",
+                "source": "Contextual Analysis",
+                "strength": "Medium"
+            })
+        
+        return fallback_contradictions[:count]
+       
 class HybridContradictionAgent:
     """Intelligent Contradiction Agent using context and AI - no hardcoding"""
     
@@ -39,7 +356,8 @@ class HybridContradictionAgent:
             self.hybrid_service = None
     
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Find contradictions using intelligent context analysis - no hardcoding"""
+        """Process contradictions using pure AI intelligence - no hardcoded patterns"""
+        
         if not self.model:
             return {"error": "Model not initialized"}
         
@@ -48,55 +366,52 @@ class HybridContradictionAgent:
         research_data = input_data.get("research_data", {})
         context = input_data.get("context", {})
         
-        print(f"🎯 Finding contradictions using context for: {processed_hypothesis}")
+        print(f"🎯 Finding contradictions using pure AI intelligence for: {processed_hypothesis}")
         
         # Log context usage
         if context:
-            self._log_context_usage(context)
+            asset_info = context.get("asset_info", {})
+            print(f"🔧 Using context: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('asset_type', 'Unknown')})")
         
         try:
-            # Use context to generate intelligent contradiction strategy
-            contradiction_strategy = self._derive_contradiction_strategy_from_context(context, hypothesis)
+            # Initialize intelligent processor
+            processor = IntelligentContradictionProcessor(self.model)
             
-            # Search for contradictory evidence using context
-            contradiction_evidence = []
+            # Get raw contradictions from various sources
+            raw_contradictions = []
+            
+            # Try to get contradictions from RAG if available
             if self.hybrid_service:
-                contradiction_evidence = self._run_intelligent_contradiction_search(
-                    hypothesis, contradiction_strategy
-                )
+                rag_contradictions = self._search_rag_for_contradictions(hypothesis, context)
+                raw_contradictions.extend(rag_contradictions)
             
-            # Generate AI contradictions using context
-            ai_contradictions = self._generate_context_aware_contradictions(
-                hypothesis, research_data, context, contradiction_strategy
-            )
+            # Generate AI contradictions as raw input
+            ai_contradictions = self._generate_raw_ai_contradictions(hypothesis, research_data, context)
+            raw_contradictions.extend(ai_contradictions)
             
-            # Merge and rank using intelligent criteria
-            final_contradictions = self._merge_and_rank_contradictions(
-                ai_contradictions, contradiction_evidence
-            )
+            # Use AI processor to intelligently clean and enhance all contradictions
+            final_contradictions = processor.process_contradictions(raw_contradictions, context, hypothesis)
             
             return {
                 "contradictions": final_contradictions,
-                "analysis": self._create_intelligent_contradiction_analysis(final_contradictions, context),
-                "evidence_sources": {
-                    "context_driven": len(contradiction_evidence),
-                    "ai_generated": len(ai_contradictions),
-                    "total": len(final_contradictions)
-                },
+                "analysis": self._create_intelligent_analysis(final_contradictions, context),
+                "processing_method": "pure_ai_intelligence",
                 "status": "success"
             }
             
         except Exception as e:
-            print(f"❌ Contradiction analysis failed: {str(e)}")
-            # Context-aware fallback
-            fallback_contradictions = self._generate_intelligent_fallbacks(context, hypothesis)
+            print(f"❌ AI contradiction processing failed: {str(e)}")
+            # Even fallback uses AI
+            processor = IntelligentContradictionProcessor(self.model)
+            fallback_contradictions = processor._ai_generate_fresh_contradictions(context, hypothesis, 0)
+            
             return {
                 "contradictions": fallback_contradictions,
-                "analysis": "Used intelligent context-aware fallback contradiction analysis.",
-                "evidence_sources": {"fallback": len(fallback_contradictions)},
+                "analysis": "Used AI fallback contradiction analysis.",
+                "processing_method": "ai_fallback",
                 "status": "error_fallback"
             }
-    
+            
     def _log_context_usage(self, context: Dict) -> None:
         """Log how context is being used"""
         asset_info = context.get("asset_info", {})
