@@ -50,30 +50,32 @@ class HypothesisAgent:
             }
     
     def _create_simple_analysis_prompt(self, input_data):
-        """Create a SIMPLE prompt that just cleans the hypothesis without over-processing"""
+        """Create an intelligent prompt that adapts to ANY hypothesis"""
         hypothesis = input_data.get("hypothesis", "")
         
         return f"""
-        Clean and structure this trading hypothesis into a clear, concise title:
+        You are a financial hypothesis structuring expert. Clean and structure this trading hypothesis:
         
         Original: "{hypothesis}"
         
-        Rules:
-        1. Keep it simple and direct
-        2. Include the company name and ticker if mentioned
-        3. Include the price target and timeframe
-        4. NO analysis, NO bullet points, NO explanations
-        5. Maximum 2 sentences
-        6. Format: "[Company] ([TICKER]) will reach $[PRICE] by [TIMEFRAME]"
+        Your task:
+        1. Identify the financial instrument being discussed
+        2. Extract the directional prediction and target
+        3. Identify the timeframe
+        4. Create a clear, concise title
         
-        Examples of GOOD outputs:
-        - "Apple (AAPL) will reach $220 by end of Q2 2025"
-        - "Bitcoin (BTC) will reach $100,000 by June 2025"
-        - "Oil prices will exceed $85/barrel by March 2025"
+        Rules:
+        - Keep it simple and direct (maximum 2 sentences)
+        - Include the asset name and symbol if determinable
+        - Include the price target and timeframe if mentioned
+        - NO analysis, NO bullet points, NO explanations
+        - Work with ANY financial instrument (stocks, crypto, commodities, currencies, etc.)
+        
+        Output format: "[Asset] will [direction] [target] by [timeframe]"
         
         Provide ONLY the cleaned hypothesis title, nothing else.
         """
-    
+        
     def _create_generation_prompt(self, input_data):
         context = input_data.get("context", {})
         return f"""
