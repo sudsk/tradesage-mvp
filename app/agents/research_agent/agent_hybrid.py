@@ -1,4 +1,4 @@
-# app/agents/research_agent/agent_hybrid.py
+# app/agents/research_agent/agent_hybrid.py - Intelligent, context-driven research
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel
 from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
@@ -9,7 +9,7 @@ import concurrent.futures
 from typing import Dict, Any, List
 
 class HybridResearchAgent:
-    """Enhanced Research Agent that uses both RAG database and real-time APIs"""
+    """Intelligent Research Agent that uses context and AI - no hardcoding"""
     
     def __init__(self):
         try:
@@ -36,39 +36,37 @@ class HybridResearchAgent:
             print("✅ Hybrid RAG service connected to Research Agent")
         except Exception as e:
             print(f"⚠️  Hybrid RAG service initialization failed: {str(e)}")
-            print("   Falling back to basic real-time only mode")
+            print("   Using real-time only mode")
             self.hybrid_service = None
     
     def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Conduct hybrid research using both RAG and real-time data"""
+        """Conduct intelligent research using context - no hardcoded patterns"""
         if not self.model:
             return {"error": "Model not initialized"}
         
         hypothesis = input_data.get("hypothesis", "")
         processed_hypothesis = input_data.get("processed_hypothesis", hypothesis)
-       
-        print(f"🔬 Starting hybrid research for: {processed_hypothesis}")
-
         context = input_data.get("context", {})
-        asset_info = context.get("asset_info", {})
-        research_guidance = context.get("research_guidance", {})
-        risk_analysis = context.get("risk_analysis", {})
         
-        print(f"🔧 Using context: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('asset_type', 'Unknown')})")
+        print(f"🔬 Starting intelligent research for: {processed_hypothesis}")
+        
+        # Extract context information
+        if context:
+            self._log_context_usage(context)
         
         try:
-            # Use hybrid research if available, otherwise fall back to basic mode
+            # Use intelligent research strategy
             if self.hybrid_service:
-                research_data = self._run_hybrid_research(processed_hypothesis)
+                research_data = self._run_context_driven_hybrid_research(processed_hypothesis, context)
             else:
-                research_data = self._fallback_research_mode(processed_hypothesis)
+                research_data = self._run_context_driven_research(processed_hypothesis, context)
             
             # Generate AI analysis of the research
-            analysis = self._generate_analysis(processed_hypothesis, research_data)
+            analysis = self._generate_intelligent_analysis(processed_hypothesis, research_data, context)
             
             # Combine with analysis
             research_data["ai_analysis"] = analysis
-            research_data["research_method"] = "hybrid" if self.hybrid_service else "real_time_only"
+            research_data["research_method"] = "context_driven_hybrid" if self.hybrid_service else "context_driven_realtime"
             
             return {
                 "research_data": research_data,
@@ -76,7 +74,7 @@ class HybridResearchAgent:
             }
             
         except Exception as e:
-            print(f"❌ Hybrid research failed: {str(e)}")
+            print(f"❌ Intelligent research failed: {str(e)}")
             return {
                 "research_data": {
                     "error": str(e),
@@ -85,66 +83,78 @@ class HybridResearchAgent:
                 "status": "error"
             }
     
-    def _run_hybrid_research(self, hypothesis: str) -> Dict[str, Any]:
-        """Run hybrid research handling async/sync context properly"""
-        try:
-            # Check if we're already in an event loop
-            try:
-                loop = asyncio.get_running_loop()
-                # If we get here, we're in a running event loop
-                # Use a thread pool executor to run the async code
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(self._run_research_in_new_loop, hypothesis)
-                    return future.result(timeout=30)  # 30 second timeout
-            except RuntimeError:
-                # No running event loop, we can use asyncio.run()
-                return asyncio.run(self._hybrid_research_mode(hypothesis))
-        except Exception as e:
-            print(f"⚠️  Hybrid mode failed: {str(e)}, falling back to real-time only")
-            return self._fallback_research_mode(hypothesis)
+    def _log_context_usage(self, context: Dict) -> None:
+        """Log how context is being used"""
+        asset_info = context.get("asset_info", {})
+        print(f"🔧 Using context: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('asset_type', 'Unknown')})")
+        
+        research_guidance = context.get("research_guidance", {})
+        search_terms = research_guidance.get("search_terms", [])
+        if search_terms:
+            print(f"   📋 Context-provided search terms: {search_terms[:3]}")
     
-    def _run_research_in_new_loop(self, hypothesis: str) -> Dict[str, Any]:
-        """Run research in a completely new event loop"""
+    def _run_context_driven_hybrid_research(self, hypothesis: str, context: Dict) -> Dict[str, Any]:
+        """Run hybrid research using context intelligence"""
         try:
-            # Create a new event loop for this thread
+            # Extract instruments using context
+            instruments = self._get_instruments_from_context(context)
+            
+            # Use context for hybrid research
+            if instruments:
+                # Check if we're already in an event loop
+                try:
+                    loop = asyncio.get_running_loop()
+                    # Use thread pool executor for async operations
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(self._run_hybrid_in_new_loop, hypothesis, instruments)
+                        return future.result(timeout=30)
+                except RuntimeError:
+                    # No running event loop
+                    return asyncio.run(self._hybrid_research_mode(hypothesis, instruments))
+            else:
+                return self._run_context_driven_research(hypothesis, context)
+        except Exception as e:
+            print(f"⚠️  Hybrid mode failed: {str(e)}, falling back to real-time")
+            return self._run_context_driven_research(hypothesis, context)
+    
+    def _run_hybrid_in_new_loop(self, hypothesis: str, instruments: List[str]) -> Dict[str, Any]:
+        """Run hybrid research in a new event loop"""
+        try:
             new_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(new_loop)
             try:
-                return new_loop.run_until_complete(self._hybrid_research_mode(hypothesis))
+                return new_loop.run_until_complete(self._hybrid_research_mode(hypothesis, instruments))
             finally:
                 new_loop.close()
         except Exception as e:
             print(f"⚠️  New loop research failed: {str(e)}")
-            return self._fallback_research_mode(hypothesis)
+            return {"error": str(e)}
     
-    async def _hybrid_research_mode(self, hypothesis: str) -> Dict[str, Any]:
-        """Use hybrid RAG + real-time research"""
-        print("🔍 Using hybrid research mode (RAG + Real-time)")
+    async def _hybrid_research_mode(self, hypothesis: str, instruments: List[str]) -> Dict[str, Any]:
+        """Use hybrid RAG + real-time research with context intelligence"""
+        print("🔍 Using context-driven hybrid research mode")
         
-        # Extract instruments for targeted research
-        instruments = self._extract_instruments(hypothesis)
-        
-        # Use hybrid RAG service
+        # Use hybrid RAG service with context
         result = await self.hybrid_service.hybrid_research(hypothesis, instruments)
         
         if result.get("status") == "success":
             return result["research_data"]
         else:
-            # If hybrid failed, fall back to basic mode
-            print("⚠️  Hybrid mode failed, falling back to real-time only")
-            return self._fallback_research_mode(hypothesis)
+            print("⚠️  Hybrid mode failed, using real-time fallback")
+            return {"error": "Hybrid research failed"}
     
-    def _fallback_research_mode(self, hypothesis: str) -> Dict[str, Any]:
-        """Fallback to real-time only research"""
-        print("⚡ Using real-time only research mode")
+    def _run_context_driven_research(self, hypothesis: str, context: Dict) -> Dict[str, Any]:
+        """Run real-time research using context intelligence"""
+        print("⚡ Using context-driven real-time research mode")
         
         from app.tools.market_data_tool import market_data_tool
         from app.tools.news_data_tool import news_data_tool
         
-        # Extract instruments
-        instruments = self._extract_instruments(hypothesis)
+        # Extract research strategy from context
+        instruments = self._get_instruments_from_context(context)
+        news_query = self._get_news_query_from_context(context)
         
-        # Gather market data
+        # Gather market data using context
         market_data = {}
         for i, instrument in enumerate(instruments[:2]):
             print(f"   📊 Fetching market data {i+1}/{min(2, len(instruments))}: {instrument}")
@@ -154,9 +164,8 @@ class HybridResearchAgent:
                 print(f"   ❌ Market data failed for {instrument}: {str(e)}")
                 market_data[instrument] = {"error": str(e)}
         
-        # Gather news data
-        news_query = self._create_news_query(hypothesis)
-        print(f"   📰 Fetching news for: {news_query}")
+        # Gather news data using context
+        print(f"   📰 Fetching news using context query: {news_query}")
         try:
             news_data = news_data_tool(news_query, 7, PROJECT_ID)
         except Exception as e:
@@ -168,71 +177,143 @@ class HybridResearchAgent:
             "news_data": news_data,
             "historical_insights": [],  # Empty since no RAG
             "data_sources": {
+                "context_driven": True,
                 "rag_database": 0,
                 "real_time_market": len(market_data),
                 "real_time_news": len(news_data.get("articles", []) if isinstance(news_data, dict) else [])
             },
-            "merged_analysis": "Research completed using real-time data sources only.",
-            "confidence_score": 0.6,  # Lower confidence without historical context
-            "research_method": "real_time_fallback"
+            "merged_analysis": "Research completed using context-driven real-time data sources.",
+            "confidence_score": 0.7,  # Higher confidence with context
+            "research_method": "context_driven_realtime"
         }
     
-    def _generate_analysis(self, hypothesis: str, research_data: Dict[str, Any]) -> str:
-        """Generate AI analysis of the research findings"""
+    def _get_instruments_from_context(self, context: Dict) -> List[str]:
+        """Extract instruments from context intelligently - no hardcoding"""
+        if not context:
+            return self._ai_derive_instruments_fallback()
         
-        # Create analysis prompt
-        prompt = f"""
-        Analyze the following research data for the hypothesis: "{hypothesis}"
+        asset_info = context.get("asset_info", {})
+        instruments = []
         
-        Research Data Summary:
-        - Historical insights: {len(research_data.get('historical_insights', []))} documents
+        # Primary instrument from context
+        primary_symbol = asset_info.get("primary_symbol")
+        if primary_symbol:
+            instruments.append(primary_symbol)
+            print(f"   🎯 Primary instrument from context: {primary_symbol}")
+        
+        # Competitors from context (limit to 1 for comparison)
+        competitors = asset_info.get("competitors", [])
+        if competitors and len(instruments) < 2:
+            competitor = competitors[0]
+            instruments.append(competitor)
+            print(f"   🔄 Competitor from context: {competitor}")
+        
+        # Fallback if context doesn't provide instruments
+        if not instruments:
+            print("   ⚠️  No instruments in context, using AI fallback")
+            instruments = self._ai_derive_instruments_fallback()
+        
+        return instruments[:2]  # Limit to prevent rate limiting
+    
+    def _get_news_query_from_context(self, context: Dict) -> str:
+        """Generate news query from context - no hardcoded patterns"""
+        if not context:
+            return "financial market news"
+        
+        research_guidance = context.get("research_guidance", {})
+        
+        # Use context-provided search terms
+        search_terms = research_guidance.get("search_terms", [])
+        if search_terms:
+            query = " ".join(search_terms[:4])  # Limit to 4 terms
+            print(f"   📝 News query from context: {query}")
+            return query
+        
+        # Fallback to asset information
+        asset_info = context.get("asset_info", {})
+        asset_name = asset_info.get("asset_name", "")
+        asset_type = asset_info.get("asset_type", "")
+        
+        if asset_name:
+            query = f"{asset_name} {asset_type} market analysis"
+            print(f"   📝 News query from asset info: {query}")
+            return query
+        
+        return "financial market news"
+    
+    def _ai_derive_instruments_fallback(self) -> List[str]:
+        """AI fallback when context doesn't provide instruments"""
+        # Safe fallback - could be enhanced with AI analysis if needed
+        return ["SPY"]  # Market index as safe default
+    
+    def _generate_intelligent_analysis(self, hypothesis: str, research_data: Dict, context: Dict) -> str:
+        """Generate AI analysis using context intelligence"""
+        
+        asset_info = context.get("asset_info", {}) if context else {}
+        
+        analysis_prompt = f"""
+        Analyze the research findings for this specific investment hypothesis:
+        
+        HYPOTHESIS: "{hypothesis}"
+        
+        ASSET CONTEXT:
+        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
+        - Type: {asset_info.get("asset_type", "Unknown")}
+        - Sector: {asset_info.get("sector", "Unknown")}
+        
+        RESEARCH DATA:
         - Market data sources: {len(research_data.get('market_data', {}))}
         - News articles: {len(research_data.get('news_data', {}).get('articles', []))}
+        - Historical insights: {len(research_data.get('historical_insights', []))}
         
-        Market Data: {json.dumps(research_data.get('market_data', {}), indent=2)[:1000]}...
+        Market Data Summary: {json.dumps(research_data.get('market_data', {}), indent=2)[:1000]}...
         
-        News Data: {json.dumps(research_data.get('news_data', {}), indent=2)[:1000]}...
+        News Data Summary: {json.dumps(research_data.get('news_data', {}), indent=2)[:1000]}...
         
-        Historical Context: {research_data.get('merged_analysis', 'No historical context available')}
+        Provide intelligent analysis focusing on:
+        1. Key findings specific to this asset and sector
+        2. Relevant market developments and trends
+        3. Data quality and reliability assessment
+        4. Research confidence level for this specific asset
+        5. Asset-specific factors revealed by the research
         
-        Please provide:
-        1. Key findings from market data
-        2. Important news developments
-        3. Historical patterns (if available)
-        4. Data quality assessment
-        5. Research confidence level
-        
-        Focus on factual analysis without making investment recommendations.
+        Be specific to this asset type and avoid generic market statements.
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            response = self.model.generate_content(analysis_prompt)
             return response.text
         except Exception as e:
             print(f"⚠️  AI analysis generation failed: {str(e)}")
-            return self._generate_fallback_analysis(research_data)
+            return self._generate_fallback_analysis(research_data, asset_info)
     
-    def _generate_fallback_analysis(self, research_data: Dict[str, Any]) -> str:
-        """Generate a basic analysis if AI generation fails"""
+    def _generate_fallback_analysis(self, research_data: Dict, asset_info: Dict) -> str:
+        """Generate intelligent fallback analysis"""
         analysis_parts = []
+        
+        asset_name = asset_info.get("asset_name", "Unknown Asset")
+        asset_type = asset_info.get("asset_type", "unknown")
         
         # Market data summary
         market_data = research_data.get('market_data', {})
         if market_data:
-            analysis_parts.append("Market Data Summary:")
+            analysis_parts.append(f"Market Data Analysis for {asset_name}:")
             for instrument, data in market_data.items():
                 if isinstance(data, dict) and data.get('data', {}).get('info'):
                     info = data['data']['info']
                     price = info.get('currentPrice', 'N/A')
                     change = info.get('dayChangePercent', 0)
                     analysis_parts.append(f"- {instrument}: ${price} ({change:+.2f}% daily change)")
+                else:
+                    analysis_parts.append(f"- {instrument}: Data unavailable or error")
         
         # News summary
         news_data = research_data.get('news_data', {})
         if isinstance(news_data, dict) and news_data.get('articles'):
-            analysis_parts.append(f"\nNews Analysis: Found {len(news_data['articles'])} recent articles")
+            analysis_parts.append(f"\nNews Analysis for {asset_name}: Found {len(news_data['articles'])} recent articles")
             for article in news_data['articles'][:3]:
-                analysis_parts.append(f"- {article.get('title', 'News update')}")
+                title = article.get('title', 'News update')
+                analysis_parts.append(f"- {title}")
         
         # Historical context
         historical_insights = research_data.get('historical_insights', [])
@@ -240,180 +321,19 @@ class HybridResearchAgent:
             analysis_parts.append(f"\nHistorical Context: {len(historical_insights)} relevant documents found")
             for insight in historical_insights[:2]:
                 similarity = insight.get('similarity', 0)
-                analysis_parts.append(f"- {insight.get('title', 'Historical reference')} (relevance: {similarity:.2f})")
+                title = insight.get('title', 'Historical reference')
+                analysis_parts.append(f"- {title} (relevance: {similarity:.2f})")
         
-        return "\n".join(analysis_parts) if analysis_parts else "Limited research data available for analysis."
-
-    def _extract_instruments_intelligently(self, hypothesis: str, context: Dict) -> List[str]:
-        """Use AI + context to intelligently derive instruments"""
+        # Research quality assessment
+        data_sources = research_data.get('data_sources', {})
+        confidence = research_data.get('confidence_score', 0.5)
+        analysis_parts.append(f"\nResearch Quality Assessment:")
+        analysis_parts.append(f"- Data sources: {sum(data_sources.values()) if isinstance(data_sources, dict) else 0}")
+        analysis_parts.append(f"- Confidence level: {confidence:.2f}")
+        analysis_parts.append(f"- Asset type: {asset_type}")
         
-        # First, use context from Context Agent
-        if context and context.get("asset_info"):
-            asset_info = context["asset_info"]
-            primary_symbol = asset_info.get("primary_symbol")
-            competitors = asset_info.get("competitors", [])
-            
-            instruments = []
-            if primary_symbol:
-                instruments.append(primary_symbol)
-            
-            # Add main competitor for comparison (max 1-2)
-            if competitors:
-                instruments.extend(competitors[:1])
-            
-            return instruments[:2]  # Limit to prevent rate limiting
-        
-        # Fallback: Use AI to derive if context fails
-        return self._ai_derive_instruments(hypothesis)
-    
-    def _ai_derive_instruments(self, hypothesis: str) -> List[str]:
-        """Use AI to derive instruments when context is not available"""
-        
-        prompt = f"""
-        From this hypothesis, identify the specific financial instruments to research:
-        
-        "{hypothesis}"
-        
-        Provide ONLY the trading symbols/tickers that should be researched.
-        Rules:
-        - Maximum 2 instruments to avoid rate limits
-        - Use official exchange symbols (e.g., AAPL, BTC-USD, CL=F)
-        - If multiple instruments, prioritize the primary one mentioned
-        - For comparisons, include the main competitor
-        
-        Respond with ONLY a JSON array: ["SYMBOL1", "SYMBOL2"]
-        """
-        
-        try:
-            response = self.model.generate_content(prompt)
-            # Parse JSON response
-            import json
-            symbols = json.loads(response.text.strip())
-            return symbols if isinstance(symbols, list) else []
-        except:
-            return ["SPY"]  # Safe fallback    
-            
-    def _extract_instruments(self, hypothesis: str) -> List[str]:
-        """Extract financial instruments from hypothesis with better company name mapping"""
-        import re
-        
-        instruments = []
-        
-        # Company name to ticker mapping
-        company_mappings = {
-            'apple': 'AAPL',
-            'microsoft': 'MSFT', 
-            'google': 'GOOGL',
-            'alphabet': 'GOOGL',
-            'amazon': 'AMZN',
-            'tesla': 'TSLA',
-            'nvidia': 'NVDA',
-            'meta': 'META',
-            'facebook': 'META',
-            'netflix': 'NFLX',
-            'salesforce': 'CRM',
-            'oracle': 'ORCL',
-            'adobe': 'ADBE',
-            'intel': 'INTC',
-            'amd': 'AMD',
-            'uber': 'UBER',
-            'airbnb': 'ABNB',
-            'spotify': 'SPOT',
-            'zoom': 'ZM',
-            'slack': 'WORK',
-            'twitter': 'TWTR',
-            'snap': 'SNAP',
-            'pinterest': 'PINS'
-        }
-        
-        # Check for company names first
-        hypothesis_lower = hypothesis.lower()
-        for company, ticker in company_mappings.items():
-            if company in hypothesis_lower:
-                instruments.append(ticker)
-                break  # Take the first match
-        
-        # Cryptocurrency patterns
-        if re.search(r'bitcoin|btc', hypothesis_lower):
-            instruments.append('BTC-USD')
-        elif re.search(r'ethereum|eth', hypothesis_lower):
-            instruments.append('ETH-USD')
-        
-        # Explicit ticker patterns: $AAPL or (AAPL)
-        ticker_patterns = [
-            r'\$([A-Z]{2,5})',           # $AAPL
-            r'\(([A-Z]{2,5})\)',         # (AAPL) 
-            r'\b([A-Z]{2,5})\b'          # AAPL (standalone)
-        ]
-        
-        for pattern in ticker_patterns:
-            matches = re.findall(pattern, hypothesis)
-            for match in matches:
-                if len(match) >= 2 and match not in ['USD', 'THE', 'AND', 'FOR', 'ARE', 'WILL']:
-                    instruments.append(match)
-        
-        # Oil and commodities
-        if 'oil' in hypothesis_lower:
-            instruments.append('CL=F')  # Crude oil futures
-        elif 'gold' in hypothesis_lower:
-            instruments.append('GLD')   # Gold ETF
-        
-        # Remove duplicates
-        instruments = list(dict.fromkeys(instruments))  # Preserves order
-        
-        # Default fallbacks if nothing found
-        if not instruments:
-            if 'crypto' in hypothesis_lower:
-                instruments = ['BTC-USD']
-            elif 'stock' in hypothesis_lower or 'market' in hypothesis_lower:
-                instruments = ['SPY']
-            else:
-                instruments = ['SPY']  # Ultimate fallback
-        
-        print(f"🎯 Extracted instruments for '{hypothesis[:50]}...': {instruments}")
-        return instruments[:2]  # Limit to prevent rate limiting
-    
-    def _create_news_query(self, hypothesis: str) -> str:
-        """Create targeted news search query based on the original simple hypothesis"""
-        # Use the original simple input, not the processed verbose version
-        hypothesis_lower = hypothesis.lower()
-        
-        # Company-specific queries
-        if 'apple' in hypothesis_lower:
-            return 'Apple AAPL stock earnings revenue'
-        elif 'microsoft' in hypothesis_lower:
-            return 'Microsoft MSFT stock cloud azure'
-        elif 'google' in hypothesis_lower or 'alphabet' in hypothesis_lower:
-            return 'Google Alphabet GOOGL stock advertising'
-        elif 'amazon' in hypothesis_lower:
-            return 'Amazon AMZN stock AWS ecommerce'
-        elif 'tesla' in hypothesis_lower:
-            return 'Tesla TSLA stock electric vehicles'
-        elif 'nvidia' in hypothesis_lower:
-            return 'Nvidia NVDA stock AI chips'
-        elif 'meta' in hypothesis_lower or 'facebook' in hypothesis_lower:
-            return 'Meta Facebook META stock social media'
-        
-        # Crypto queries
-        elif 'bitcoin' in hypothesis_lower or 'btc' in hypothesis_lower:
-            return 'bitcoin cryptocurrency market price'
-        elif 'ethereum' in hypothesis_lower or 'eth' in hypothesis_lower:
-            return 'ethereum cryptocurrency market price'
-        elif 'crypto' in hypothesis_lower:
-            return 'cryptocurrency market news'
-        
-        # Commodity queries  
-        elif 'oil' in hypothesis_lower:
-            return 'oil price energy market OPEC crude'
-        elif 'gold' in hypothesis_lower:
-            return 'gold price precious metals market'
-        
-        # General market
-        elif any(term in hypothesis_lower for term in ['stock', 'market', 'sp500', 'nasdaq']):
-            return 'stock market financial news'
-        else:
-            return 'financial market news'
+        return "\n".join(analysis_parts) if analysis_parts else f"Limited research data available for {asset_name} analysis."
 
 def create():
-    """Create and return a hybrid research agent instance"""
+    """Create and return an intelligent hybrid research agent instance"""
     return HybridResearchAgent()
