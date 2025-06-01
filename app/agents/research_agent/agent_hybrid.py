@@ -243,7 +243,56 @@ class HybridResearchAgent:
                 analysis_parts.append(f"- {insight.get('title', 'Historical reference')} (relevance: {similarity:.2f})")
         
         return "\n".join(analysis_parts) if analysis_parts else "Limited research data available for analysis."
+
+    def _extract_instruments_intelligently(self, hypothesis: str, context: Dict) -> List[str]:
+        """Use AI + context to intelligently derive instruments"""
+        
+        # First, use context from Context Agent
+        if context and context.get("asset_info"):
+            asset_info = context["asset_info"]
+            primary_symbol = asset_info.get("primary_symbol")
+            competitors = asset_info.get("competitors", [])
+            
+            instruments = []
+            if primary_symbol:
+                instruments.append(primary_symbol)
+            
+            # Add main competitor for comparison (max 1-2)
+            if competitors:
+                instruments.extend(competitors[:1])
+            
+            return instruments[:2]  # Limit to prevent rate limiting
+        
+        # Fallback: Use AI to derive if context fails
+        return self._ai_derive_instruments(hypothesis)
     
+    def _ai_derive_instruments(self, hypothesis: str) -> List[str]:
+        """Use AI to derive instruments when context is not available"""
+        
+        prompt = f"""
+        From this hypothesis, identify the specific financial instruments to research:
+        
+        "{hypothesis}"
+        
+        Provide ONLY the trading symbols/tickers that should be researched.
+        Rules:
+        - Maximum 2 instruments to avoid rate limits
+        - Use official exchange symbols (e.g., AAPL, BTC-USD, CL=F)
+        - If multiple instruments, prioritize the primary one mentioned
+        - For comparisons, include the main competitor
+        
+        Respond with ONLY a JSON array: ["SYMBOL1", "SYMBOL2"]
+        """
+        
+        try:
+            response = self.model.generate_content(prompt)
+            # Parse JSON response
+            import json
+            symbols = json.loads(response.text.strip())
+            return symbols if isinstance(symbols, list) else []
+        except:
+            return ["SPY"]  # Safe fallback    
+            
     def _extract_instruments(self, hypothesis: str) -> List[str]:
         """Extract financial instruments from hypothesis with better company name mapping"""
         import re
