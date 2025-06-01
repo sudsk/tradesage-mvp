@@ -1,10 +1,8 @@
-# app/agents/hypothesis_agent/agent.py - Fixed to keep titles simple
+# app/agents/hypothesis_agent/agent.py - Intelligent, no hardcoding
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel
 from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
 from .prompt import SYSTEM_INSTRUCTION
-from app.tools.market_data_tool import market_data_tool
-from app.tools.news_data_tool import news_data_tool
 import json
 
 class HypothesisAgent:
@@ -21,11 +19,10 @@ class HypothesisAgent:
             self.model = None
     
     def process(self, input_data):
-        """Process the input and generate a response."""
+        """Process any hypothesis using intelligent AI analysis - no hardcoding"""
         if not self.model:
             return {"error": "Model not initialized"}
         
-        # Determine the type of request
         mode = input_data.get("mode", "analyze")
         
         if mode == "generate":
@@ -33,8 +30,8 @@ class HypothesisAgent:
         elif mode == "refine":
             prompt = self._create_refinement_prompt(input_data)
         else:
-            # For analyze mode, keep it SIMPLE - just clean the input
-            prompt = self._create_simple_analysis_prompt(input_data)
+            # Intelligent analysis mode - works for ANY hypothesis
+            prompt = self._create_intelligent_analysis_prompt(input_data)
         
         try:
             response = self.model.generate_content(prompt)
@@ -49,65 +46,104 @@ class HypothesisAgent:
                 "status": "error"
             }
     
-    def _create_simple_analysis_prompt(self, input_data):
-        """Create an intelligent prompt that adapts to ANY hypothesis"""
+    def _create_intelligent_analysis_prompt(self, input_data):
+        """Create intelligent prompt that works for ANY financial hypothesis"""
         hypothesis = input_data.get("hypothesis", "")
         
         return f"""
-        You are a financial hypothesis structuring expert. Clean and structure this trading hypothesis:
+        You are an expert financial analyst. Clean and structure this trading hypothesis intelligently:
         
-        Original: "{hypothesis}"
+        Original Input: "{hypothesis}"
         
-        Your task:
-        1. Identify the financial instrument being discussed
-        2. Extract the directional prediction and target
-        3. Identify the timeframe
-        4. Create a clear, concise title
+        Your task - analyze and structure this hypothesis for ANY financial instrument:
         
-        Rules:
-        - Keep it simple and direct (maximum 2 sentences)
-        - Include the asset name and symbol if determinable
-        - Include the price target and timeframe if mentioned
-        - NO analysis, NO bullet points, NO explanations
-        - Work with ANY financial instrument (stocks, crypto, commodities, currencies, etc.)
+        1. **Identify the Financial Instrument:**
+           - What asset is being discussed? (stock, crypto, commodity, currency, bond, etc.)
+           - What is the official name and trading symbol?
+           - What market does it trade on?
         
-        Output format: "[Asset] will [direction] [target] by [timeframe]"
+        2. **Extract the Prediction:**
+           - What is the directional prediction? (bullish/bearish/neutral)
+           - What specific price target or percentage move is mentioned?
+           - What timeframe is specified?
         
-        Provide ONLY the cleaned hypothesis title, nothing else.
+        3. **Structure the Title:**
+           - Create a clear, concise hypothesis title
+           - Include asset name and symbol if determinable
+           - Include price target and timeframe
+           - Maximum 2 sentences
+           - Format: "[Asset] ([Symbol]) will [direction] [target] by [timeframe]"
+        
+        **Important Guidelines:**
+        - Work with ANY financial instrument globally
+        - Do not use hardcoded patterns or assumptions
+        - Derive everything from the content and your knowledge
+        - If information is unclear, make intelligent inferences
+        - Keep the output clean and professional
+        
+        **Examples of good outputs:**
+        - "Tesla (TSLA) will reach $300 by Q3 2025"
+        - "Bitcoin (BTC-USD) will appreciate to $120,000 by year-end"
+        - "West Texas Intermediate crude oil will exceed $95/barrel by summer 2025"
+        - "Euro (EUR/USD) will strengthen to 1.15 by Q2 2025"
+        
+        Provide ONLY the structured hypothesis title, nothing else.
         """
-        
+    
     def _create_generation_prompt(self, input_data):
+        """Generate new hypothesis based on intelligent market analysis"""
         context = input_data.get("context", {})
+        
         return f"""
-        Generate a new trading hypothesis based on current market conditions.
+        Generate a new, intelligent trading hypothesis based on current market analysis.
         
-        Context: {json.dumps(context, indent=2)}
+        Context Provided: {json.dumps(context, indent=2)}
         
-        Please provide:
-        1. A specific, actionable trading hypothesis
-        2. Rationale based on market analysis
-        3. Structured components (thesis, instruments, timeframe, etc.)
-        4. Initial confidence assessment (0-1)
+        Create a hypothesis that:
+        1. Is based on realistic market conditions and trends
+        2. Specifies a clear asset, direction, target, and timeframe
+        3. Is actionable and measurable
+        4. Considers current market dynamics
+        5. Works for any asset class (stocks, crypto, commodities, currencies, etc.)
         
-        Format your response with clear sections.
+        Structure your response with:
+        - **Hypothesis Statement**: Clear, specific prediction
+        - **Rationale**: Why this prediction makes sense
+        - **Key Factors**: What would drive this outcome
+        - **Risks**: What could prevent this outcome
+        - **Timeline**: Specific timeframe and milestones
+        
+        Make it professional and well-reasoned for any financial instrument.
         """
     
     def _create_refinement_prompt(self, input_data):
+        """Refine any trading idea into a structured hypothesis"""
         idea = input_data.get("idea", "")
+        
         return f"""
-        Refine this trading idea into a formal hypothesis:
+        Refine this trading idea into a professional, structured hypothesis:
         
         Original Idea: "{idea}"
         
-        Please:
-        1. Extract the core investment thesis
-        2. Add specific structure and components
-        3. Provide timeframe and success metrics
-        4. Assess initial confidence (0-1)
+        Transform this into a complete investment hypothesis by:
         
-        Format as a structured hypothesis.
+        1. **Clarifying the Asset**: What specific instrument is being discussed?
+        2. **Defining the Thesis**: What is the core investment argument?
+        3. **Setting Targets**: What specific price or performance target?
+        4. **Establishing Timeline**: What is the investment timeframe?
+        5. **Identifying Catalysts**: What events could drive this outcome?
+        6. **Assessing Confidence**: What is the initial confidence level?
+        
+        Structure the output as:
+        - **Refined Hypothesis**: "[Asset] will [outcome] by [timeframe]"
+        - **Investment Thesis**: Core reasoning (2-3 sentences)
+        - **Success Criteria**: Specific measurable outcomes
+        - **Key Catalysts**: Events that would drive success
+        - **Initial Confidence**: High/Medium/Low with brief reasoning
+        
+        Work intelligently with any asset class or market.
         """
 
 def create():
-    """Create and return a hypothesis agent instance."""
+    """Create and return an intelligent hypothesis agent instance"""
     return HypothesisAgent()
