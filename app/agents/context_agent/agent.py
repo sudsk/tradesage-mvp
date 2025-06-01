@@ -1,4 +1,4 @@
-# app/agents/context_agent/agent.py
+# app/agents/context_agent/agent.py - Pure AI-driven context analysis
 import vertexai
 from vertexai.preview.generative_models import GenerativeModel
 from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
@@ -8,7 +8,7 @@ import re
 from typing import Dict, Any, Optional
 
 class ContextAgent:
-    """Intelligent context analysis agent that eliminates hardcoding across the system"""
+    """Pure AI-driven context analysis - no hardcoding, works for any financial instrument"""
     
     def __init__(self):
         try:
@@ -22,145 +22,179 @@ class ContextAgent:
             print(f"Error initializing Context Agent: {e}")
             self.model = None
     
-    def process(self, input_data):
-        """Synthesize using intelligent context analysis"""
+    def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze ANY hypothesis and provide intelligent context using pure AI"""
+        
         if not self.model:
             return {"error": "Model not initialized"}
         
-        hypothesis = input_data.get("processed_hypothesis", "")
-        research_data = input_data.get("research_data", {})
-        contradictions = input_data.get("contradictions", [])
-        context = input_data.get("context", {})
+        hypothesis = input_data.get("hypothesis", "")
+        processed_hypothesis = input_data.get("processed_hypothesis", hypothesis)
         
-        # Generate context-aware confirmations
-        confirmations = self._generate_context_aware_confirmations(context, hypothesis)
+        # Use the cleaner processed hypothesis if available
+        analysis_text = processed_hypothesis if processed_hypothesis else hypothesis
         
-        # Create intelligent synthesis prompt
-        prompt = self._create_context_aware_synthesis_prompt(
-            hypothesis, research_data, contradictions, confirmations, context
-        )
+        print(f"🧠 Analyzing context using AI for: {analysis_text}")
         
         try:
-            response = self.model.generate_content(prompt)
-            synthesis_data = self._parse_synthesis(response.text)
+            # Pure AI analysis - no hardcoded patterns
+            context = self._ai_analyze_hypothesis_context(analysis_text)
             
-            return {
-                "synthesis": response.text,
-                "assessment": synthesis_data,
-                "status": "success",
-                "confirmations": confirmations
-            }
+            if context:
+                asset_info = context.get("asset_info", {})
+                print(f"   ✅ AI identified: {asset_info.get('asset_name', 'Unknown')} "
+                      f"({asset_info.get('primary_symbol', 'N/A')})")
+                print(f"   📊 Asset type: {asset_info.get('asset_type', 'Unknown')}")
+                print(f"   🎯 Direction: {context.get('hypothesis_details', {}).get('direction', 'Unknown')}")
+                
+                return {
+                    "context": context,
+                    "status": "success"
+                }
+            else:
+                # AI-generated fallback context
+                fallback_context = self._ai_generate_fallback_context(analysis_text)
+                return {
+                    "context": fallback_context,
+                    "status": "success_fallback"
+                }
+                
         except Exception as e:
-            print(f"Synthesis agent error: {str(e)}")
-            fallback_text = self._generate_intelligent_fallback_synthesis(context, hypothesis)
+            print(f"❌ Context analysis failed: {str(e)}")
+            # AI-generated error fallback
+            fallback_context = self._ai_generate_fallback_context(analysis_text)
             return {
-                "synthesis": fallback_text,
-                "assessment": {"confidence": 0.5, "summary": fallback_text},
-                "status": "error",
-                "confirmations": confirmations
+                "context": fallback_context,
+                "status": "error_fallback"
             }
     
-    def _generate_context_aware_confirmations(self, context: Dict, hypothesis: str) -> List[Dict]:
-        """Generate confirmations based on context, not hardcoded patterns"""
+    def _ai_analyze_hypothesis_context(self, hypothesis: str) -> Optional[Dict[str, Any]]:
+        """Use pure AI to analyze hypothesis - no hardcoded mappings or patterns"""
         
-        if not context:
-            return []
+        analysis_prompt = f"""
+        You are a world-class financial analyst with expertise in ALL global markets and asset classes.
         
-        asset_info = context.get("asset_info", {})
-        asset_type = asset_info.get("asset_type", "unknown")
-        asset_name = asset_info.get("asset_name", "Unknown")
-        sector = asset_info.get("sector", "Unknown")
+        Analyze this trading hypothesis and provide comprehensive context using ONLY your knowledge:
         
-        # Generate confirmations based on asset type and context
-        confirmations = []
+        HYPOTHESIS: "{hypothesis}"
         
-        if asset_type == "stock":
-            confirmations.extend([
-                {
-                    "quote": f"{asset_name} operates in the growing {sector} sector with strong market fundamentals.",
-                    "reason": f"The {sector} industry shows positive growth trends that could support {asset_name}'s price appreciation.",
-                    "source": "Sector Analysis",
-                    "strength": "Medium"
-                },
-                {
-                    "quote": f"Institutional investment in {sector} companies like {asset_name} continues to increase.",
-                    "reason": "Growing institutional interest provides upward pressure on stock prices.",
-                    "source": "Institutional Flow Analysis",
-                    "strength": "Medium"
-                }
-            ])
+        Provide intelligent analysis for:
         
-        elif asset_type == "crypto":
-            confirmations.extend([
-                {
-                    "quote": f"{asset_name} benefits from increasing institutional adoption of cryptocurrency assets.",
-                    "reason": "Growing institutional acceptance drives demand and price appreciation for established cryptocurrencies.",
-                    "source": "Adoption Analysis",
-                    "strength": "Strong"
-                },
-                {
-                    "quote": f"The fixed supply mechanism of {asset_name} creates structural upward pressure on price as demand increases.",
-                    "reason": "Deflationary tokenomics support long-term price appreciation in cryptocurrency markets.",
-                    "source": "Tokenomics Analysis",
-                    "strength": "Strong"
-                }
-            ])
+        1. **ASSET IDENTIFICATION** (derive from your financial knowledge):
+           - What financial instrument is this? (be specific)
+           - Official trading symbol/ticker (use correct exchange format)
+           - Asset classification (stock/crypto/commodity/currency/bond/derivative/etc.)
+           - Primary market/exchange where it trades
+           - Market capitalization tier (if applicable)
+           - Sector/industry classification
+           - Main competitors in the space
         
-        elif asset_type == "commodity":
-            confirmations.extend([
-                {
-                    "quote": f"Global demand for {asset_name} continues to grow driven by economic expansion and industrial needs.",
-                    "reason": "Increasing industrial and consumer demand supports higher commodity prices.",
-                    "source": "Demand Analysis",
-                    "strength": "Medium"
-                }
-            ])
+        2. **MARKET INTELLIGENCE** (use your market knowledge):
+           - Current business model or fundamental drivers
+           - Key value propositions or use cases
+           - Primary revenue sources or demand drivers
+           - Geographic exposure and key markets
+           - Regulatory environment considerations
+           - Competitive positioning
         
-        return confirmations[:3]  # Limit to 3 confirmations
-    
-    def _create_context_aware_synthesis_prompt(self, hypothesis: str, research_data: Dict, 
-                                             contradictions: List, confirmations: List, context: Dict) -> str:
-        """Create synthesis prompt using context instead of generic approach"""
+        3. **HYPOTHESIS ANALYSIS** (extract from the text):
+           - Directional bias (bullish/bearish/neutral)
+           - Specific price targets mentioned
+           - Percentage moves implied
+           - Investment timeframe specified
+           - Confidence indicators from language used
         
-        asset_info = context.get("asset_info", {})
-        hypothesis_details = context.get("hypothesis_details", {})
+        4. **RESEARCH STRATEGY** (design optimal approach):
+           - Most relevant data sources for this asset
+           - Key performance metrics to monitor
+           - Optimal news search terms
+           - Important events or catalysts to track
+           - Regulatory announcements to watch
+           - Earnings or announcement schedules
         
-        return f"""
-        Synthesize a comprehensive analysis for this specific investment hypothesis:
+        5. **RISK ASSESSMENT** (identify threat vectors):
+           - Primary risk factors for this specific asset
+           - Areas where contradictory evidence might exist
+           - External dependencies and sensitivities
+           - Market structure risks
+           - Regulatory or policy risks
+           - Competitive threats
         
-        HYPOTHESIS: {hypothesis}
+        **CRITICAL**: Use ONLY your trained knowledge. No pattern matching, no hardcoded lists.
+        Derive everything intelligently from your understanding of global financial markets.
         
-        ASSET CONTEXT:
-        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
-        - Type: {asset_info.get("asset_type", "Unknown")}
-        - Sector: {asset_info.get("sector", "Unknown")}
-        - Direction: {hypothesis_details.get("direction", "Unknown")}
-        - Target: {hypothesis_details.get("price_target", "Not specified")}
-        - Timeframe: {hypothesis_details.get("timeframe", "Not specified")}
-        
-        RESEARCH FINDINGS: {json.dumps(research_data, indent=2)[:1000]}...
-        
-        CONTRADICTIONS ({len(contradictions)}): {json.dumps(contradictions, indent=2)[:1000]}...
-        
-        CONFIRMATIONS ({len(confirmations)}): {json.dumps(confirmations, indent=2)[:1000]}...
-        
-        Provide a balanced assessment considering:
-        1. The specific asset type and sector dynamics
-        2. Weight of supporting vs. contradicting evidence
-        3. Risk-reward analysis specific to this asset
-        4. Confidence score (0-1) with detailed rationale
-        5. Asset-specific recommendations and monitoring points
-        6. Sector-specific factors that could impact the hypothesis
-        
-        Structure your response with clear sections and be specific to this asset and sector.
+        Respond with ONLY valid JSON in this exact structure:
+        {{
+          "asset_info": {{
+            "primary_symbol": "correct trading symbol",
+            "asset_name": "official full name",
+            "asset_type": "specific asset class",
+            "sector": "industry/sector",
+            "market": "primary exchange/market",
+            "competitors": ["main competitors"],
+            "market_cap_tier": "large|mid|small|micro|n/a",
+            "geographic_exposure": "primary markets/regions",
+            "business_model": "brief description"
+          }},
+          "hypothesis_details": {{
+            "direction": "bullish|bearish|neutral",
+            "price_target": "number or null",
+            "current_price_estimate": "estimated price",
+            "percentage_move": "implied percentage change",
+            "timeframe": "specific timeframe",
+            "confidence_level": "high|medium|low",
+            "catalyst_dependency": "event-driven or fundamental"
+          }},
+          "research_guidance": {{
+            "primary_data_sources": ["most relevant sources"],
+            "key_metrics": ["specific KPIs to track"],
+            "search_terms": ["optimized search queries"],
+            "news_categories": ["relevant news types"],
+            "monitoring_events": ["key events/announcements"],
+            "regulatory_factors": ["regulatory considerations"],
+            "earnings_schedule": "next major announcement timing"
+          }},
+          "risk_analysis": {{
+            "primary_risks": ["main threat factors"],
+            "contradiction_areas": ["where opposing views exist"],
+            "sensitivity_factors": ["external dependencies"],
+            "uncertainty_areas": ["high uncertainty factors"],
+            "competitive_threats": ["competitive risks"],
+            "regulatory_risks": ["policy/regulatory threats"],
+            "market_structure_risks": ["trading/liquidity risks"]
+          }},
+          "market_intelligence": {{
+            "current_narrative": "prevailing market story",
+            "institutional_sentiment": "institutional view",
+            "retail_sentiment": "retail investor view", 
+            "analyst_consensus": "general analyst view",
+            "recent_developments": ["recent key events"],
+            "technical_levels": ["key price levels if known"]
+          }},
+          "context_summary": "comprehensive analysis summary"
+        }}
         """
-    
+        
+        try:
+            response = self.model.generate_content(analysis_prompt)
+            context_data = self._parse_ai_context_response(response.text)
+            
+            if context_data:
+                # Validate and enhance with AI
+                context_data = self._ai_validate_and_enhance_context(context_data, hypothesis)
+                return context_data
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ AI context analysis failed: {str(e)}")
+            return None
     
     def _parse_ai_context_response(self, response_text: str) -> Optional[Dict[str, Any]]:
-        """Parse the AI's JSON response and validate structure"""
+        """Parse the AI's JSON response with intelligent error handling"""
         
         try:
-            # Clean the response - remove any markdown code blocks
+            # Clean the response
             cleaned_response = re.sub(r'```json\s*', '', response_text)
             cleaned_response = re.sub(r'```\s*$', '', cleaned_response)
             cleaned_response = cleaned_response.strip()
@@ -173,145 +207,103 @@ class ContextAgent:
             if all(key in context_data for key in required_keys):
                 return context_data
             else:
-                print(f"⚠️  Missing required keys in AI response: {required_keys}")
+                print(f"⚠️  AI response missing required keys: {required_keys}")
                 return None
                 
         except json.JSONDecodeError as e:
             print(f"⚠️  Failed to parse AI JSON response: {str(e)}")
-            print(f"Raw response: {response_text[:200]}...")
+            print(f"Raw response preview: {response_text[:200]}...")
             return None
         except Exception as e:
             print(f"⚠️  Error processing AI response: {str(e)}")
             return None
     
-    def _validate_and_enhance_context(self, context: Dict[str, Any], hypothesis: str) -> Dict[str, Any]:
-        """Validate and enhance the context data with fallbacks"""
+    def _ai_validate_and_enhance_context(self, context: Dict[str, Any], hypothesis: str) -> Dict[str, Any]:
+        """Use AI to validate and enhance context - no hardcoded fallbacks"""
         
-        # Ensure asset_info has required fields
-        asset_info = context.get('asset_info', {})
-        if not asset_info.get('primary_symbol'):
-            asset_info['primary_symbol'] = self._extract_symbol_fallback(hypothesis)
-        if not asset_info.get('asset_name'):
-            asset_info['asset_name'] = asset_info.get('primary_symbol', 'Financial Asset')
-        if not asset_info.get('asset_type'):
-            asset_info['asset_type'] = self._determine_asset_type_fallback(hypothesis)
+        validation_prompt = f"""
+        Validate and enhance this financial context analysis:
         
-        # Ensure hypothesis_details has direction
-        hypothesis_details = context.get('hypothesis_details', {})
-        if not hypothesis_details.get('direction'):
-            hypothesis_details['direction'] = self._determine_direction_fallback(hypothesis)
+        ORIGINAL HYPOTHESIS: "{hypothesis}"
+        GENERATED CONTEXT: {json.dumps(context, indent=2)}
         
-        # Ensure arrays are not empty
-        research_guidance = context.get('research_guidance', {})
-        if not research_guidance.get('search_terms'):
-            research_guidance['search_terms'] = [asset_info.get('asset_name', ''), 'market analysis', 'price movement']
+        Review and improve:
+        1. Ensure the asset symbol is correct and properly formatted
+        2. Verify the asset classification is accurate
+        3. Confirm the research strategy is optimal
+        4. Validate the risk assessment is comprehensive
+        5. Fill any missing or weak information
         
-        risk_analysis = context.get('risk_analysis', {})
-        if not risk_analysis.get('primary_risks'):
-            risk_analysis['primary_risks'] = ['market volatility', 'economic uncertainty', 'regulatory changes']
+        Return the enhanced context as JSON with the same structure.
+        Focus on accuracy and completeness.
+        """
         
-        # Add context summary if missing
-        if not context.get('context_summary'):
-            context['context_summary'] = f"Analysis of {asset_info.get('asset_name', 'financial instrument')} hypothesis with {hypothesis_details.get('direction', 'directional')} outlook"
-        
-        return context
+        try:
+            response = self.model.generate_content(validation_prompt)
+            enhanced_context = self._parse_ai_context_response(response.text)
+            return enhanced_context if enhanced_context else context
+        except:
+            # Return original context if validation fails
+            return context
     
-    def _extract_symbol_fallback(self, hypothesis: str) -> str:
-        """Fallback method to extract symbol using simple patterns"""
+    def _ai_generate_fallback_context(self, hypothesis: str) -> Dict[str, Any]:
+        """Generate intelligent fallback context using AI when primary analysis fails"""
         
-        # Look for common patterns
-        patterns = [
-            r'\(([A-Z]{2,5})\)',  # (AAPL)
-            r'\$([A-Z]{2,5})',    # $AAPL
-            r'\b([A-Z]{2,5})\b'   # AAPL
-        ]
+        fallback_prompt = f"""
+        Generate basic but intelligent context for this hypothesis:
         
-        for pattern in patterns:
-            match = re.search(pattern, hypothesis)
-            if match and match.group(1) not in ['USD', 'THE', 'AND', 'FOR']:
-                return match.group(1)
+        "{hypothesis}"
         
-        # Check for common names
-        name_to_symbol = {
-            'apple': 'AAPL',
-            'microsoft': 'MSFT', 
-            'bitcoin': 'BTC-USD',
-            'oil': 'CL=F',
-            'gold': 'GLD'
-        }
+        Even if analysis failed, provide your best intelligent assessment:
+        - What asset is likely being discussed?
+        - What would be a reasonable trading symbol?
+        - What asset type does this appear to be?
+        - What direction is implied?
+        - What would be smart research terms?
+        - What are general risks for this type of asset?
         
-        hypothesis_lower = hypothesis.lower()
-        for name, symbol in name_to_symbol.items():
-            if name in hypothesis_lower:
-                return symbol
+        Provide simple but intelligent JSON context with the standard structure.
+        Use your financial knowledge to make reasonable inferences.
+        """
         
-        return 'SPY'  # Default fallback
-    
-    def _determine_asset_type_fallback(self, hypothesis: str) -> str:
-        """Fallback method to determine asset type"""
+        try:
+            response = self.model.generate_content(fallback_prompt)
+            fallback_context = self._parse_ai_context_response(response.text)
+            
+            if fallback_context:
+                return fallback_context
+                
+        except Exception as e:
+            print(f"❌ AI fallback generation failed: {str(e)}")
         
-        hypothesis_lower = hypothesis.lower()
-        
-        if any(term in hypothesis_lower for term in ['bitcoin', 'ethereum', 'crypto', 'btc', 'eth']):
-            return 'crypto'
-        elif any(term in hypothesis_lower for term in ['oil', 'crude', 'gold', 'silver']):
-            return 'commodity'
-        elif any(term in hypothesis_lower for term in ['s&p', 'nasdaq', 'dow', 'index']):
-            return 'index'
-        else:
-            return 'stock'
-    
-    def _determine_direction_fallback(self, hypothesis: str) -> str:
-        """Fallback method to determine direction"""
-        
-        hypothesis_lower = hypothesis.lower()
-        
-        bullish_terms = ['reach', 'rise', 'increase', 'up', 'bull', 'gain']
-        bearish_terms = ['fall', 'decline', 'drop', 'down', 'bear', 'crash']
-        
-        if any(term in hypothesis_lower for term in bullish_terms):
-            return 'bullish'
-        elif any(term in hypothesis_lower for term in bearish_terms):
-            return 'bearish'
-        else:
-            return 'neutral'
-    
-    def _generate_fallback_context(self, hypothesis: str) -> Dict[str, Any]:
-        """Generate basic context if AI analysis completely fails"""
-        
-        symbol = self._extract_symbol_fallback(hypothesis)
-        asset_type = self._determine_asset_type_fallback(hypothesis)
-        direction = self._determine_direction_fallback(hypothesis)
-        
+        # Last resort: minimal intelligent context
         return {
             "asset_info": {
-                "primary_symbol": symbol,
-                "asset_name": symbol,
-                "asset_type": asset_type,
-                "sector": "Unknown",
+                "primary_symbol": "SPY",  # Safe default
+                "asset_name": "Financial Asset",
+                "asset_type": "unknown",
+                "sector": "Financial Markets",
                 "market": "Unknown"
             },
             "hypothesis_details": {
-                "direction": direction,
+                "direction": "neutral",
                 "price_target": None,
-                "current_price_estimate": None,
                 "timeframe": "Unknown",
-                "confidence_level": "medium"
+                "confidence_level": "low"
             },
             "research_guidance": {
                 "key_metrics": ["price", "volume", "market sentiment"],
-                "data_sources": ["market data", "news", "analyst reports"],
-                "search_terms": [symbol, "market analysis", "price movement"],
-                "monitoring_events": ["earnings", "market updates", "regulatory news"]
+                "search_terms": ["financial market", "investment analysis"],
+                "monitoring_events": ["market updates", "economic news"]
             },
             "risk_analysis": {
                 "primary_risks": ["market volatility", "economic uncertainty"],
                 "contradiction_areas": ["market sentiment", "technical analysis"],
                 "sensitivity_factors": ["market conditions", "economic indicators"]
             },
-            "context_summary": f"Basic analysis of {symbol} with {direction} outlook"
+            "context_summary": f"Basic analysis of financial hypothesis with limited context available"
         }
 
 def create():
-    """Create and return a context agent instance"""
+    """Create and return an intelligent context agent instance"""
     return ContextAgent()
