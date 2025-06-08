@@ -6,20 +6,10 @@ from app.agents.context_agent.agent import create as create_context_agent
 from app.agents.synthesis_agent.agent import create as create_synthesis_agent
 from app.agents.alert_agent.agent import create as create_alert_agent
 
-# Import hybrid agents
-try:
-    from app.agents.research_agent.agent_hybrid import create as create_hybrid_research_agent
-    HYBRID_RESEARCH_AVAILABLE = True
-except ImportError:
-    from app.agents.research_agent.agent import create as create_research_agent
-    HYBRID_RESEARCH_AVAILABLE = False
-
-try:
-    from app.agents.contradiction_agent.agent_hybrid import create as create_hybrid_contradiction_agent
-    HYBRID_CONTRADICTION_AVAILABLE = True
-except ImportError:
-    from app.agents.contradiction_agent.agent import create as create_contradiction_agent
-    HYBRID_CONTRADICTION_AVAILABLE = False
+from app.agents.research_agent.agent_hybrid import create as create_hybrid_research_agent
+HYBRID_RESEARCH_AVAILABLE = True
+from app.agents.contradiction_agent.agent_hybrid import create as create_hybrid_contradiction_agent
+HYBRID_CONTRADICTION_AVAILABLE = True
 
 # Define enhanced state structure
 class TradeSageState(TypedDict):
