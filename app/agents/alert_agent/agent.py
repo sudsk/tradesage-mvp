@@ -160,82 +160,161 @@ class AlertAgent:
     def _create_entry_alert(self, alert_id: int, asset_name: str, asset_type: str, 
                           primary_symbol: str, price_target: Any, timeframe: str, 
                           direction: str, confidence_score: float) -> Dict:
-        """Create intelligent entry alert based on confidence and context"""
+        """Create intelligent entry alert with database constraints"""
         
         target_text = f"${price_target}" if price_target else "target level"
-        direction_text = f"{direction} move to " if direction != "neutral" else "move to "
         
         if confidence_score > 0.7:
-            return {
-                "id": alert_id,
-                "type": "high_confidence_signal",
-                "message": f"High confidence signal: Consider initiating {direction} position in {asset_name} ({primary_symbol}) targeting {target_text} by {timeframe}",
-                "priority": "high",
-                "timestamp": datetime.now().isoformat(),
-                "action": "consider_entry",
-                "confidence_level": "high",
-                "asset_specific": True
-            }
+            message = f"High confidence: Consider {direction} position in {asset_name} ({primary_symbol}) targeting {target_text} by {timeframe}"
+            alert_type = "high_confidence_signal"
+            priority = "high"
         elif confidence_score > 0.5:
-            return {
-                "id": alert_id,
-                "type": "medium_confidence_signal",
-                "message": f"Medium confidence: Monitor {asset_name} ({primary_symbol}) for confirmation signals before entering {direction} position",
-                "priority": "medium",
-                "timestamp": datetime.now().isoformat(),
-                "action": "monitor_for_entry",
-                "confidence_level": "medium",
-                "asset_specific": True
-            }
+            message = f"Medium confidence: Monitor {asset_name} ({primary_symbol}) for confirmation before entering {direction} position"
+            alert_type = "medium_confidence_signal" 
+            priority = "medium"
         else:
-            return {
-                "id": alert_id,
-                "type": "low_confidence_warning",
-                "message": f"Low confidence: Exercise caution with {asset_name} ({primary_symbol}) due to mixed signals and significant contradictions",
-                "priority": "high",
-                "timestamp": datetime.now().isoformat(),
-                "action": "avoid_or_wait",
-                "confidence_level": "low",
-                "asset_specific": True
-            }
+            message = f"Low confidence: Exercise caution with {asset_name} ({primary_symbol}) due to mixed signals"
+            alert_type = "low_confidence_warning"
+            priority = "high"
+        
+        # Ensure message fits database constraints (500 char limit)
+        if len(message) > 450:
+            message = message[:447] + "..."
+        
+        # Ensure alert_type fits database constraints (50 char limit)
+        if len(alert_type) > 45:
+            alert_type = alert_type[:45]
+        
+        return {
+            "id": alert_id,
+            "type": alert_type,
+            "message": message,
+            "priority": priority,
+            "timestamp": datetime.now().isoformat(),
+            "action": "consider_entry" if confidence_score > 0.5 else "avoid_or_wait",
+            "confidence_level": "high" if confidence_score > 0.7 else ("medium" if confidence_score > 0.5 else "low"),
+            "asset_specific": True
+        }
     
     def _create_asset_type_alert(self, alert_id: int, asset_type: str, 
                                asset_name: str, primary_symbol: str) -> Dict:
-        """Create asset-type specific alerts using context intelligence"""
+        """Create asset-type specific alerts with database constraints"""
         
         if asset_type in ["crypto", "cryptocurrency"]:
-            return {
-                "id": alert_id,
-                "type": "crypto_volatility_warning",
-                "message": f"Cryptocurrency volatility: Set appropriate stop-losses for {asset_name} ({primary_symbol}) due to high volatility nature",
-                "priority": "medium",
-                "timestamp": datetime.now().isoformat(),
-                "action": "set_wide_stops",
-                "asset_type_specific": True
-            }
+            message = f"Set appropriate stop-losses for {asset_name} ({primary_symbol}) due to high crypto volatility"
+            alert_type = "crypto_volatility"
+            
         elif asset_type == "stock":
-            return {
-                "id": alert_id,
-                "type": "earnings_monitoring",
-                "message": f"Monitor upcoming earnings announcements for {asset_name} ({primary_symbol}) as potential volatility catalyst",
-                "priority": "medium",
-                "timestamp": datetime.now().isoformat(),
-                "action": "monitor_earnings",
-                "asset_type_specific": True
-            }
+            message = f"Monitor earnings announcements for {asset_name} ({primary_symbol}) as volatility catalyst"
+            alert_type = "earnings_monitor"
+            
         elif asset_type == "commodity":
-            return {
-                "id": alert_id,
-                "type": "supply_demand_monitoring",
-                "message": f"Monitor supply/demand dynamics and geopolitical factors affecting {asset_name} prices",
-                "priority": "medium",
-                "timestamp": datetime.now().isoformat(),
-                "action": "monitor_fundamentals",
-                "asset_type_specific": True
-            }
+            message = f"Monitor supply/demand and geopolitical factors affecting {asset_name} prices"
+            alert_type = "supply_demand"
+            
+        else:
+            return None
         
-        return None
+        # Ensure constraints
+        if len(message) > 450:
+            message = message[:447] + "..."
+        if len(alert_type) > 45:
+            alert_type = alert_type[:45]
+        
+        return {
+            "id": alert_id,
+            "type": alert_type,
+            "message": message,
+            "priority": "medium",
+            "timestamp": datetime.now().isoformat(),
+            "action": "set_wide_stops" if asset_type in ["crypto", "cryptocurrency"] else "monitor_earnings",
+            "asset_type_specific": True
+        }
     
+    def _generate_intelligent_recommendations(self, context: Dict, hypothesis: str,
+                                            synthesis: str, research_data: Dict, 
+                                            confidence_score: float) -> str:
+        """Generate recommendations with database-friendly constraints"""
+        
+        if not context:
+            return self._generate_generic_recommendations(hypothesis, confidence_score)
+        
+        asset_info = context.get("asset_info", {})
+        
+        # Create concise prompt to avoid overly long responses
+        prompt = f"""
+        Generate concise investment recommendations for: {hypothesis}
+        
+        ASSET: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("asset_type", "Unknown")})
+        CONFIDENCE: {confidence_score:.2f}
+        
+        Provide specific recommendations in these areas (keep each section under 200 characters):
+        
+        1. Entry Strategy
+        2. Position Sizing  
+        3. Risk Management
+        4. Monitoring Plan
+        5. Exit Strategy
+        
+        Keep recommendations:
+        - Specific to this asset
+        - Actionable with clear criteria
+        - Concise and database-friendly
+        - Professional tone, no markdown formatting
+        
+        Total response should be under 2000 characters.
+        """
+        
+        try:
+            response = self.model.generate_content(prompt)
+            # Ensure recommendations fit reasonable limits
+            recommendations = response.text
+            if len(recommendations) > 2000:
+                recommendations = recommendations[:1997] + "..."
+            return recommendations
+        except Exception as e:
+            print(f"⚠️  Recommendation generation failed: {str(e)}")
+            return self._generate_fallback_recommendations_strict(context, hypothesis, confidence_score)
+    
+    def _generate_fallback_recommendations_strict(self, context: Dict, hypothesis: str, confidence_score: float) -> str:
+        """Generate intelligent fallback recommendations with database constraints"""
+        
+        asset_info = context.get("asset_info", {}) if context else {}
+        asset_name = asset_info.get("asset_name", "the asset")
+        asset_type = asset_info.get("asset_type", "unknown")
+        
+        if confidence_score > 0.7:
+            action = f"Consider initiating position in {asset_name}"
+            sizing = f"Standard allocation for {asset_type} investments"
+            risk = "Set 10-15% stop loss"
+        elif confidence_score > 0.5:
+            action = f"Wait for confirmation signals for {asset_name}"
+            sizing = "Reduced allocation until stronger signals"
+            risk = "Tight stops due to uncertainty"
+        else:
+            action = f"Avoid position or wait for better setup"
+            sizing = "Minimal or no allocation recommended"
+            risk = "Significant improvement required"
+        
+        recommendations = f"""Investment Recommendations for {asset_name}:
+    Confidence: {confidence_score:.2f}
+    
+    1. Entry: {action}
+    2. Sizing: {sizing}  
+    3. Risk: {risk}
+    4. Monitor: Track price action and sector developments
+    5. Timeline: Reassess monthly or on developments
+    6. Exit: Set profit targets at key resistance levels
+    
+    Risk Management: Diversify across positions, monitor correlation with market conditions."""
+        
+        # Ensure under 2000 characters
+        if len(recommendations) > 1900:
+            recommendations = recommendations[:1897] + "..."
+        
+        return recommendations
+    
+   
     def _generate_generic_alerts(self, hypothesis: str, confidence_score: float) -> List[Dict]:
         """Generate generic alerts when context is not available"""
         return [
@@ -250,69 +329,7 @@ class AlertAgent:
             }
         ]
     
-    def _generate_intelligent_recommendations(self, context: Dict, hypothesis: str,
-                                            synthesis: str, research_data: Dict, 
-                                            confidence_score: float) -> str:
-        """Generate specific recommendations using context intelligence"""
-        
-        if not context:
-            return self._generate_generic_recommendations(hypothesis, confidence_score)
-        
-        asset_info = context.get("asset_info", {})
-        hypothesis_details = context.get("hypothesis_details", {})
-        research_guidance = context.get("research_guidance", {})
-        risk_analysis = context.get("risk_analysis", {})
-        
-        prompt = f"""
-        Generate specific, actionable investment recommendations for this hypothesis:
-        
-        HYPOTHESIS: {hypothesis}
-        
-        ASSET CONTEXT:
-        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
-        - Type: {asset_info.get("asset_type", "Unknown")}
-        - Sector: {asset_info.get("sector", "Unknown")}
-        - Market: {asset_info.get("market", "Unknown")}
-        
-        HYPOTHESIS PARAMETERS:
-        - Direction: {hypothesis_details.get("direction", "Unknown")}
-        - Target: {hypothesis_details.get("price_target", "Not specified")}
-        - Timeframe: {hypothesis_details.get("timeframe", "Not specified")}
-        - Confidence: {confidence_score:.2f}
-        
-        KEY METRICS TO MONITOR: {research_guidance.get("key_metrics", [])}
-        EVENTS TO WATCH: {research_guidance.get("monitoring_events", [])}
-        PRIMARY RISKS: {risk_analysis.get("primary_risks", [])}
-        
-        SYNTHESIS SUMMARY: {synthesis[:500]}...
-        
-        Provide specific, actionable recommendations including:
-        
-        1. **Entry Strategy**: Specific entry criteria and timing for this asset type
-        2. **Position Sizing**: Appropriate position size based on confidence level and risk
-        3. **Risk Management**: Stop-loss levels and risk controls specific to this asset
-        4. **Monitoring Plan**: Key metrics and events to track for this specific asset
-        5. **Exit Strategy**: Profit-taking levels and exit criteria
-        6. **Timeline**: Specific milestones and reassessment points
-        7. **Asset-Specific Considerations**: Unique factors for this asset type and market
-        
-        Make all recommendations:
-        - Specific to this asset and its characteristics
-        - Actionable with clear criteria and levels
-        - Appropriate for the confidence level and timeframe
-        - Realistic given current market conditions
-        - Tailored to this asset type's typical behavior
-        
-        Avoid generic advice - focus on this specific investment opportunity.
-        """
-        
-        try:
-            response = self.model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            print(f"⚠️  Intelligent recommendation generation failed: {str(e)}")
-            return self._generate_fallback_recommendations(context, hypothesis, confidence_score)
-    
+   
     def _generate_fallback_recommendations(self, context: Dict, hypothesis: str, confidence_score: float) -> str:
         """Generate intelligent fallback recommendations using context"""
         
