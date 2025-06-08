@@ -160,7 +160,7 @@ class IntelligentContradictionProcessor:
         }
     
     def _ai_generate_fresh_contradictions(self, context: Dict, hypothesis: str, existing_count: int) -> List[Dict]:
-        """Generate completely fresh contradictions using AI"""
+        """Generate completely fresh contradictions using AI with database constraints"""
         
         needed_count = max(3 - existing_count, 0)
         if needed_count == 0:
@@ -170,91 +170,81 @@ class IntelligentContradictionProcessor:
         risk_analysis = context.get("risk_analysis", {})
         
         generation_prompt = f"""
-        You are an expert financial analyst creating contradictions for investment analysis.
+        Generate {needed_count} HIGH-QUALITY contradictions for this hypothesis:
         
         HYPOTHESIS: "{hypothesis}"
         
-        ASSET CONTEXT:
-        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
-        - Type: {asset_info.get("asset_type", "Unknown")}
-        - Sector: {asset_info.get("sector", "Unknown")}
-        - Market: {asset_info.get("market", "Unknown")}
+        ASSET: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
+        TYPE: {asset_info.get("asset_type", "Unknown")}
         
-        IDENTIFIED RISKS: {risk_analysis.get("primary_risks", [])}
-        
-        TASK: Generate {needed_count} HIGH-QUALITY contradictions that challenge this hypothesis.
+        CRITICAL CONSTRAINTS - Each contradiction must have:
+        - Quote: Maximum 400 characters (keep concise!)
+        - Reason: Maximum 400 characters (keep concise!)  
+        - Source: Maximum 40 characters (e.g., "Market Research")
+        - Strength: ONLY "Strong", "Medium", or "Weak"
         
         REQUIREMENTS:
-        1. Each contradiction must be SPECIFIC to this asset and its sector
-        2. Must be ACTIONABLE - something investors can verify or monitor
-        3. Must be REALISTIC - based on actual market dynamics for this asset type
-        4. Must be PROFESSIONAL - suitable for investment decision-making
-        5. Must provide REAL VALUE - help investors understand risks
+        1. SPECIFIC to this asset and sector
+        2. ACTIONABLE - investors can verify or monitor
+        3. REALISTIC - based on actual market dynamics
+        4. CONCISE - fit database limits (NO markdown formatting)
         
-        FOCUS AREAS:
-        - Competitive threats specific to this company/asset
-        - Sector-specific headwinds and challenges
-        - Valuation concerns relative to current fundamentals
-        - Regulatory or policy risks affecting this asset type
-        - Market timing and sentiment factors
-        - Technical analysis concerns for this specific asset
+        Format each as exactly: quote|reason|source|strength
         
-        OUTPUT FORMAT:
-        For each contradiction, provide:
-        {{
-            "quote": "Specific, professional contradiction statement",
-            "reason": "Detailed explanation of why this challenges the hypothesis",
-            "strength": "Strong/Medium/Weak"
-        }}
+        Example:
+        Competition pressures limit pricing power|Increased market competition reduces profit margins and growth prospects|Industry Analysis|Strong
         
-        Respond with a JSON array of {needed_count} contradictions.
-        
-        Make each contradiction valuable for someone making an investment decision about this specific asset.
+        Generate {needed_count} contradictions. Keep under character limits.
         """
         
         try:
             response = self.model.generate_content(generation_prompt)
-            return self._parse_generated_contradictions(response.text)
+            return self._parse_generated_contradictions_strict(response.text)
         except Exception as e:
             print(f"   ❌ AI contradiction generation failed: {str(e)}")
-            return self._intelligent_fallback_contradictions(context, hypothesis, needed_count)
+            return self._intelligent_fallback_contradictions_strict(context, hypothesis, needed_count)
     
-    def _parse_generated_contradictions(self, ai_response: str) -> List[Dict]:
-        """Parse AI-generated contradictions"""
+    def _parse_generated_contradictions_strict(self, ai_response: str) -> List[Dict]:
+        """Parse AI-generated contradictions with strict database constraints"""
         
         try:
-            # Clean response for JSON parsing
-            cleaned_response = ai_response.strip()
-            if cleaned_response.startswith('```json'):
-                cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
+            # Try structured parsing first
+            contradictions = []
+            lines = ai_response.split('\n')
             
-            contradictions_data = json.loads(cleaned_response)
+            for line in lines:
+                if '|' in line and len(line.split('|')) >= 4:
+                    parts = line.split('|')
+                    quote = parts[0].strip()[:400]    # Enforce 400 char limit
+                    reason = parts[1].strip()[:400]   # Enforce 400 char limit
+                    source = parts[2].strip()[:40]    # Enforce 40 char limit
+                    strength = parts[3].strip()
+                    
+                    # Validate strength
+                    if strength not in ["Strong", "Medium", "Weak"]:
+                        strength = "Medium"
+                    
+                    # Only add if meaningful content
+                    if len(quote) > 20 and len(reason) > 10:
+                        contradictions.append({
+                            "quote": quote,
+                            "reason": reason,
+                            "source": source,
+                            "strength": strength,
+                            "processing": "ai_generated"
+                        })
             
-            # Handle both array and single object responses
-            if isinstance(contradictions_data, list):
-                contradictions = contradictions_data
-            else:
-                contradictions = [contradictions_data]
-            
-            formatted_contradictions = []
-            for item in contradictions:
-                if isinstance(item, dict) and "quote" in item:
-                    formatted_contradictions.append({
-                        "quote": item.get("quote", ""),
-                        "reason": item.get("reason", ""),
-                        "source": "AI Generated Analysis",
-                        "strength": item.get("strength", "Medium"),
-                        "processing": "ai_generated"
-                    })
-            
-            return formatted_contradictions
-            
-        except json.JSONDecodeError:
-            # Fallback: extract from text format
-            return self._extract_contradictions_from_text(ai_response)
+            if contradictions:
+                return contradictions
+                
+        except Exception as e:
+            print(f"   ⚠️  Structured parsing failed: {str(e)}")
+        
+        # Fallback: extract from text format
+        return self._extract_contradictions_from_text_strict(ai_response)
     
-    def _extract_contradictions_from_text(self, text: str) -> List[Dict]:
-        """Extract contradictions from free-text AI response"""
+    def _extract_contradictions_from_text_strict(self, text: str) -> List[Dict]:
+        """Extract contradictions from free-text with database constraints"""
         
         contradictions = []
         
@@ -265,67 +255,73 @@ class IntelligentContradictionProcessor:
             if len(section.strip()) > 50:  # Substantial content
                 lines = [line.strip() for line in section.split('\n') if line.strip()]
                 
-                if len(lines) >= 2:  # At least quote and reason
-                    quote = lines[0].strip('"\'1234567890.)')  # Remove numbering and quotes
-                    reason = lines[1] if len(lines) > 1 else "This factor challenges the hypothesis"
+                if len(lines) >= 1:
+                    # Use first line as quote, create safe reason
+                    quote_text = lines[0].strip()
                     
-                    if len(quote) > 20:  # Meaningful content
+                    # Clean and limit quote
+                    quote = quote_text.replace('1.', '').replace('2.', '').replace('3.', '').strip()
+                    quote = quote[:380] + "..." if len(quote) > 380 else quote
+                    
+                    if len(quote) > 20:
                         contradictions.append({
                             "quote": quote,
-                            "reason": reason,
-                            "source": "AI Generated Analysis",
+                            "reason": "Market analysis identifies this challenge to the hypothesis.",
+                            "source": "AI Analysis",
                             "strength": "Medium",
                             "processing": "ai_text_extracted"
                         })
+            
+            if len(contradictions) >= 3:
+                break
         
-        return contradictions[:3]  # Return up to 3
+        return contradictions
     
-    def _intelligent_fallback_contradictions(self, context: Dict, hypothesis: str, count: int) -> List[Dict]:
-        """Intelligent fallback using context when AI generation fails"""
+    def _intelligent_fallback_contradictions_strict(self, context: Dict, hypothesis: str, count: int) -> List[Dict]:
+        """Intelligent fallback with database constraints"""
         
         asset_info = context.get("asset_info", {}) if context else {}
         asset_name = asset_info.get("asset_name", "the asset")
         asset_type = asset_info.get("asset_type", "unknown")
         sector = asset_info.get("sector", "financial markets")
         
-        # Use context to generate intelligent fallbacks
         fallback_contradictions = []
         
         if asset_type in ["stock", "equity"]:
             fallback_contradictions.append({
-                "quote": f"{asset_name} faces intensifying competitive pressure in the {sector} sector that could limit its ability to achieve the projected price target.",
-                "reason": f"Increased competition in {sector} can erode market share and pricing power, potentially limiting the fundamental growth needed to justify higher valuations.",
-                "source": "Contextual Analysis",
+                "quote": f"{asset_name} faces competitive pressure in {sector} limiting growth.",
+                "reason": f"Competition in {sector} can erode margins and market share.",
+                "source": "Competitive Analysis",
                 "strength": "Medium"
             })
         
         elif asset_type in ["crypto", "cryptocurrency"]:
             fallback_contradictions.append({
-                "quote": f"{asset_name} faces regulatory uncertainty and potential government restrictions that could significantly impact its price trajectory.",
-                "reason": "Cryptocurrency markets are highly sensitive to regulatory developments, and restrictive policies could limit institutional adoption and trading accessibility.",
-                "source": "Contextual Analysis", 
+                "quote": f"{asset_name} faces regulatory uncertainty and volatility risks.",
+                "reason": "Crypto markets are sensitive to regulatory changes and policies.",
+                "source": "Regulatory Analysis", 
                 "strength": "Strong"
             })
         
         elif asset_type == "commodity":
             fallback_contradictions.append({
-                "quote": f"Supply and demand dynamics for {asset_name} could shift unfavorably due to economic conditions or alternative technologies.",
-                "reason": "Commodity markets are highly cyclical and sensitive to global economic conditions, technological substitution, and supply disruptions.",
-                "source": "Contextual Analysis",
+                "quote": f"Supply/demand dynamics for {asset_name} could shift unfavorably.",
+                "reason": "Commodity markets are cyclical and sensitive to economic changes.",
+                "source": "Commodity Analysis",
                 "strength": "Medium"
             })
         
-        # Add general market risk if we need more
+        # Add general market risk if needed
         if len(fallback_contradictions) < count:
             fallback_contradictions.append({
-                "quote": f"Current market valuation levels and economic uncertainty could prevent {asset_name} from reaching the projected price target within the specified timeframe.",
-                "reason": "Market timing predictions are inherently uncertain, and external economic factors often override fundamental analysis in determining short-term price movements.",
-                "source": "Contextual Analysis",
+                "quote": f"Market valuation and economic uncertainty challenge {asset_name} targets.",
+                "reason": "External economic factors often override fundamental analysis.",
+                "source": "Market Analysis",
                 "strength": "Medium"
             })
         
         return fallback_contradictions[:count]
-
+    
 class HybridContradictionAgent:
     """AI-Powered Contradiction Agent - Clean Implementation"""
     
