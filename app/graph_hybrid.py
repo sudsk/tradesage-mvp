@@ -5,11 +5,8 @@ from app.agents.hypothesis_agent.agent import create as create_hypothesis_agent
 from app.agents.context_agent.agent import create as create_context_agent
 from app.agents.synthesis_agent.agent import create as create_synthesis_agent
 from app.agents.alert_agent.agent import create as create_alert_agent
-
 from app.agents.research_agent.agent_hybrid import create as create_hybrid_research_agent
-HYBRID_RESEARCH_AVAILABLE = True
 from app.agents.contradiction_agent.agent_hybrid import create as create_hybrid_contradiction_agent
-HYBRID_CONTRADICTION_AVAILABLE = True
 
 # Define enhanced state structure
 class TradeSageState(TypedDict):
@@ -42,20 +39,8 @@ def create_hybrid_graph():
     context_agent = create_context_agent()    
     synthesis_agent = create_synthesis_agent()
     alert_agent = create_alert_agent()
-    
-    if HYBRID_RESEARCH_AVAILABLE:
-        research_agent = create_hybrid_research_agent()
-        print("✅ Hybrid Research Agent loaded")
-    else:
-        research_agent = create_research_agent()
-        print("⚠️  Using standard Research Agent (hybrid not available)")
-    
-    if HYBRID_CONTRADICTION_AVAILABLE:
-        contradiction_agent = create_hybrid_contradiction_agent()
-        print("✅ Hybrid Contradiction Agent loaded")
-    else:
-        contradiction_agent = create_contradiction_agent()
-        print("⚠️  Using standard Contradiction Agent (hybrid not available)")
+    research_agent = create_hybrid_research_agent()
+    contradiction_agent = create_hybrid_contradiction_agent()
     
     print("=" * 50)
     
