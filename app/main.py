@@ -121,7 +121,7 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
         contradiction_list = []
         confirmation_list = []
         
-        # Process and save contradictions
+        # Process and save contradictions with CLEAN formatting
         if result.get("contradictions"):
             # If contradictions come as a string (LLM response), process it
             if isinstance(result["contradictions"], str):
@@ -129,8 +129,11 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
             elif isinstance(result["contradictions"], list):
                 contradiction_list = result["contradictions"]
             
+            # Clean the contradictions for frontend display
+            cleaned_contradictions = []
             for contradiction in contradiction_list:
                 if isinstance(contradiction, dict):
+                    # Save to database with full structure
                     contradiction_data = {
                         "hypothesis_id": db_hypothesis.id,
                         "quote": contradiction.get("quote", ""),
@@ -139,6 +142,12 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
                         "strength": contradiction.get("strength", "Medium")
                     }
                     ContradictionCRUD.create_contradiction(db, contradiction_data)
+                    
+                    # Create clean version for frontend (just the quote text)
+                    cleaned_contradictions.append(contradiction.get("quote", ""))
+            
+            # Update the list for response
+            contradiction_list = cleaned_contradictions
         
         # Process confirmations similarly
         if result.get("confirmations"):
@@ -147,8 +156,11 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
             elif isinstance(result["confirmations"], list):
                 confirmation_list = result["confirmations"]
                 
+            # Clean the confirmations for frontend display
+            cleaned_confirmations = []
             for confirmation in confirmation_list:
                 if isinstance(confirmation, dict):
+                    # Save to database with full structure
                     confirmation_data = {
                         "hypothesis_id": db_hypothesis.id,
                         "quote": confirmation.get("quote", ""),
@@ -157,6 +169,12 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
                         "strength": confirmation.get("strength", "Strong")
                     }
                     ConfirmationCRUD.create_confirmation(db, confirmation_data)
+                    
+                    # Create clean version for frontend (just the quote text)
+                    cleaned_confirmations.append(confirmation.get("quote", ""))
+            
+            # Update the list for response
+            confirmation_list = cleaned_confirmations
         
         # Add research data
         if result.get("research_data"):
@@ -206,7 +224,7 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
                 "market_data": result.get("research_data", {}).get("market_data", {}),
                 "news_data": result.get("research_data", {}).get("news_data", {})
             },
-            "contradictions": contradiction_list,
+            "contradictions": contradiction_list,  # Now contains clean strings only
             "synthesis": ResponseProcessor.process_agent_response(result.get("synthesis", ""), "general"),
             "alerts": result.get("alerts", []),
             "recommendations": ResponseProcessor.process_agent_response(result.get("final_response", ""), "general"),
