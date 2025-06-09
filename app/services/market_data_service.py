@@ -1,9 +1,8 @@
-# app/services/market_data_service.py - Simplified for reliability
+# app/services/market_data_service.py - Real data only, no mock fallbacks
 
 import requests
 import os
 import time
-import random
 import json
 from datetime import datetime, timedelta
 
@@ -20,53 +19,90 @@ class MarketDataService:
         print("Market data service initialized with:")
         print(f"- Alpha Vantage API key: {'Available' if self.alpha_vantage_key else 'Not found'}")
         print(f"- FMP API key: {'Available' if self.fmp_key else 'Not found'}")
+        
+        if not self.alpha_vantage_key and not self.fmp_key:
+            print("⚠️  WARNING: No API keys found. Market data will be limited to Yahoo Finance scraping.")
     
     def get_stock_data(self, symbol):
-        """Main method to fetch stock data with fallbacks"""
+        """Main method to fetch stock data - real data only, no mocks"""
+        
+        # Validate symbol
+        if not symbol or len(symbol.strip()) == 0:
+            return {
+                'instrument': symbol,
+                'error': 'Invalid symbol provided',
+                'status': 'error'
+            }
+        
+        symbol = symbol.upper().strip()
+        
         # Check cache first
-        if symbol in self._cache:
-            cache_time, cache_data = self._cache[symbol]
-            if time.time() - cache_time < self._cache_duration:
-                print(f"Using cached data for {symbol}")
-                return cache_data
+        cache_key = f"{symbol}_{int(time.time() // self._cache_duration)}"
+        if cache_key in self._cache:
+            print(f"✅ Using cached data for {symbol}")
+            return self._cache[cache_key]
+        
+        errors = []
         
         # Try Alpha Vantage first (if key is available)
         if self.alpha_vantage_key:
             try:
-                print(f"Trying Alpha Vantage for {symbol}")
+                print(f"🔍 Fetching {symbol} from Alpha Vantage...")
                 data = self._fetch_alpha_vantage(symbol)
-                self._cache[symbol] = (time.time(), data)
+                self._cache[cache_key] = data
+                print(f"✅ Successfully fetched {symbol} from Alpha Vantage: ${data['data']['info']['currentPrice']}")
                 return data
             except Exception as e:
-                print(f"Alpha Vantage failed: {str(e)}")
+                error_msg = f"Alpha Vantage failed: {str(e)}"
+                print(f"❌ {error_msg}")
+                errors.append(error_msg)
         
         # Try FMP next (if key is available)
         if self.fmp_key:
             try:
-                print(f"Trying Financial Modeling Prep for {symbol}")
+                print(f"🔍 Fetching {symbol} from Financial Modeling Prep...")
                 data = self._fetch_fmp(symbol)
-                self._cache[symbol] = (time.time(), data)
+                self._cache[cache_key] = data
+                print(f"✅ Successfully fetched {symbol} from FMP: ${data['data']['info']['currentPrice']}")
                 return data
             except Exception as e:
-                print(f"FMP failed: {str(e)}")
+                error_msg = f"FMP failed: {str(e)}"
+                print(f"❌ {error_msg}")
+                errors.append(error_msg)
         
         # Try Yahoo Finance as last resort
         try:
-            print(f"Trying Yahoo Finance for {symbol}")
+            print(f"🔍 Fetching {symbol} from Yahoo Finance (scraping)...")
             data = self._fetch_yahoo(symbol)
-            self._cache[symbol] = (time.time(), data)
+            self._cache[cache_key] = data
+            print(f"✅ Successfully fetched {symbol} from Yahoo Finance: ${data['data']['info']['currentPrice']}")
             return data
         except Exception as e:
-            print(f"Yahoo Finance failed: {str(e)}")
+            error_msg = f"Yahoo Finance failed: {str(e)}"
+            print(f"❌ {error_msg}")
+            errors.append(error_msg)
         
-        # If all APIs fail, return mock data
-        print(f"All APIs failed for {symbol}, returning mock data")
-        mock_data = self._generate_mock_data(symbol)
-        self._cache[symbol] = (time.time(), mock_data)
-        return mock_data
+        # If all methods fail, return error
+        all_errors = "; ".join(errors)
+        error_response = {
+            'instrument': symbol,
+            'error': f'Unable to fetch real market data for {symbol}. All sources failed: {all_errors}',
+            'errors_detail': errors,
+            'status': 'error',
+            'timestamp': datetime.now().isoformat(),
+            'suggestions': [
+                'Check if the symbol is correct (e.g., AAPL for Apple)',
+                'Verify API keys are properly configured',
+                'Try again in a few minutes (rate limits may apply)',
+                'Check if the market is open (some APIs have limited weekend data)'
+            ]
+        }
+        
+        print(f"❌ Failed to fetch data for {symbol}: {all_errors}")
+        return error_response
     
     def _fetch_alpha_vantage(self, symbol):
-        """Fetch data from Alpha Vantage"""
+        """Fetch data from Alpha Vantage API"""
         params = {
             'function': 'GLOBAL_QUOTE',
             'symbol': symbol,
@@ -74,23 +110,35 @@ class MarketDataService:
         }
         
         url = "https://www.alphavantage.co/query"
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()
         
         data = response.json()
         
-        # Check for API error
+        # Check for API errors
         if 'Error Message' in data:
-            raise Exception(data['Error Message'])
+            raise Exception(f"API Error: {data['Error Message']}")
+            
+        if 'Note' in data:
+            raise Exception("API rate limit exceeded. Please try again later.")
             
         if 'Global Quote' not in data or not data['Global Quote']:
-            raise Exception("No data in Alpha Vantage response")
+            raise Exception("No quote data returned. Symbol may be invalid.")
             
         quote = data['Global Quote']
-        price = float(quote.get('05. price', 0))
+        
+        # Validate price data
+        try:
+            price = float(quote.get('05. price', 0))
+            prev_close = float(quote.get('08. previous close', 0))
+            change = float(quote.get('09. change', 0))
+            change_percent_str = quote.get('10. change percent', '0.0%')
+            change_percent = float(change_percent_str.replace('%', ''))
+        except (ValueError, TypeError):
+            raise Exception("Invalid price data format from Alpha Vantage")
         
         if price <= 0:
-            raise Exception("Invalid price data")
+            raise Exception(f"Invalid price data: ${price}")
         
         return {
             'instrument': symbol,
@@ -98,38 +146,54 @@ class MarketDataService:
             'data': {
                 'symbol': symbol,
                 'info': {
-                    'name': symbol,
-                    'sector': 'Technology',  # Placeholder
-                    'marketCap': 0,  # Placeholder
-                    'currentPrice': price,
-                    'previousClose': float(quote.get('08. previous close', 0)),
-                    'dayChange': float(quote.get('09. change', 0)),
-                    'dayChangePercent': float(quote.get('10. change percent', '0.0%').replace('%', ''))
+                    'name': f"{symbol} Stock",
+                    'sector': 'Unknown',  # Alpha Vantage quote doesn't include sector
+                    'marketCap': 0,  # Not available in quote endpoint
+                    'currentPrice': round(price, 2),
+                    'previousClose': round(prev_close, 2),
+                    'dayChange': round(change, 2),
+                    'dayChangePercent': round(change_percent, 2),
+                    'volume': int(quote.get('06. volume', 0)),
+                    'lastUpdated': quote.get('07. latest trading day', datetime.now().strftime('%Y-%m-%d'))
                 },
-                'recent_price': price,
+                'recent_price': round(price, 2),
                 'price_history': {}  # Would need additional API call
             },
-            'status': 'success'
+            'status': 'success',
+            'timestamp': datetime.now().isoformat()
         }
     
     def _fetch_fmp(self, symbol):
-        """Fetch data from Financial Modeling Prep"""
+        """Fetch data from Financial Modeling Prep API"""
         url = f"https://financialmodelingprep.com/api/v3/quote/{symbol}"
         params = {'apikey': self.fmp_key}
         
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()
         
         data = response.json()
         
         if not data or len(data) == 0:
-            raise Exception("No data received from FMP")
+            raise Exception("No data returned. Symbol may be invalid.")
+            
+        if isinstance(data, dict) and 'Error Message' in data:
+            raise Exception(f"API Error: {data['Error Message']}")
             
         quote = data[0]
-        price = quote.get('price', 0)
+        
+        # Validate price data
+        try:
+            price = float(quote.get('price', 0))
+            prev_close = float(quote.get('previousClose', 0))
+            change = float(quote.get('change', 0))
+            change_percent = float(quote.get('changesPercentage', 0))
+            volume = int(quote.get('volume', 0))
+            market_cap = int(quote.get('marketCap', 0))
+        except (ValueError, TypeError):
+            raise Exception("Invalid price data format from FMP")
         
         if price <= 0:
-            raise Exception("Invalid price data from FMP")
+            raise Exception(f"Invalid price data: ${price}")
         
         return {
             'instrument': symbol,
@@ -137,55 +201,100 @@ class MarketDataService:
             'data': {
                 'symbol': symbol,
                 'info': {
-                    'name': quote.get('name', symbol),
+                    'name': quote.get('name', f"{symbol} Stock"),
                     'sector': quote.get('sector', 'Unknown'),
-                    'marketCap': quote.get('marketCap', 0),
-                    'currentPrice': price,
-                    'previousClose': quote.get('previousClose', 0),
-                    'dayChange': quote.get('change', 0),
-                    'dayChangePercent': quote.get('changesPercentage', 0)
+                    'marketCap': market_cap,
+                    'currentPrice': round(price, 2),
+                    'previousClose': round(prev_close, 2),
+                    'dayChange': round(change, 2),
+                    'dayChangePercent': round(change_percent, 2),
+                    'volume': volume,
+                    'lastUpdated': datetime.now().strftime('%Y-%m-%d')
                 },
-                'recent_price': price,
+                'recent_price': round(price, 2),
                 'price_history': {}
             },
-            'status': 'success'
+            'status': 'success',
+            'timestamp': datetime.now().isoformat()
         }
     
     def _fetch_yahoo(self, symbol):
-        """Fetch data directly from Yahoo Finance website"""
-        # Use direct HTML scraping as a backup approach
-        import requests
-        from bs4 import BeautifulSoup
+        """Fetch data from Yahoo Finance via web scraping"""
+        
+        # Handle different symbol formats
+        yahoo_symbol = symbol
+        if '-' not in symbol and symbol not in ['BTC-USD', 'ETH-USD', 'SOL-USD']:
+            # Regular stock symbol
+            yahoo_symbol = symbol
         
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         
         try:
-            url = f"https://finance.yahoo.com/quote/{symbol}"
-            response = requests.get(url, headers=headers, timeout=10)
+            url = f"https://finance.yahoo.com/quote/{yahoo_symbol}"
+            response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
             
+            # Check if page indicates invalid symbol
+            if "Symbol Lookup" in response.text or "doesn't exist" in response.text:
+                raise Exception(f"Symbol {symbol} not found on Yahoo Finance")
+            
+            from bs4 import BeautifulSoup
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Get current price
+            # Extract current price
             price_element = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
             if not price_element:
-                raise Exception("Price element not found")
-                
-            price = float(price_element.get('value', 0))
+                # Try alternative price element
+                price_element = soup.find('span', {'data-reactid': '50'})
+                if not price_element:
+                    raise Exception("Price element not found on Yahoo Finance page")
             
-            # Get previous close
-            prev_close_element = None
-            table_rows = soup.find_all('tr')
-            for row in table_rows:
-                if row.find('td') and 'Previous Close' in row.find('td').get_text():
-                    prev_close_element = row.find_all('td')[1]
-                    break
+            try:
+                price_value = price_element.get('value') or price_element.get_text()
+                price = float(price_value.replace(',', '').replace('$', ''))
+            except (ValueError, AttributeError):
+                raise Exception("Could not parse price from Yahoo Finance")
             
-            prev_close = float(prev_close_element.get_text().replace(',', '')) if prev_close_element else price
-            change = price - prev_close
-            change_percent = (change / prev_close * 100) if prev_close != 0 else 0
+            if price <= 0:
+                raise Exception(f"Invalid price found: ${price}")
+            
+            # Extract additional data
+            name = yahoo_symbol
+            try:
+                name_element = soup.find('h1', {'data-reactid': '7'})
+                if name_element:
+                    name = name_element.get_text().split('(')[0].strip()
+            except:
+                pass
+            
+            # Extract previous close and calculate change
+            prev_close = price  # Default fallback
+            change = 0
+            change_percent = 0
+            
+            try:
+                # Look for previous close in summary table
+                summary_table = soup.find('div', {'data-test': 'quote-statistics'}) or soup.find('div', {'data-test': 'summary-table'})
+                if summary_table:
+                    rows = summary_table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all('td')
+                        if len(cells) >= 2:
+                            label = cells[0].get_text().strip()
+                            if 'Previous Close' in label:
+                                prev_close = float(cells[1].get_text().replace(',', '').replace('$', ''))
+                                change = price - prev_close
+                                change_percent = (change / prev_close * 100) if prev_close != 0 else 0
+                                break
+            except:
+                pass  # Use defaults
+            
+            # Determine sector (simplified)
+            sector = "Unknown"
+            if any(crypto in yahoo_symbol for crypto in ['BTC', 'ETH', 'SOL', 'ADA']):
+                sector = "Cryptocurrency"
             
             return {
                 'instrument': symbol,
@@ -193,186 +302,86 @@ class MarketDataService:
                 'data': {
                     'symbol': symbol,
                     'info': {
-                        'name': soup.find('h1').get_text() if soup.find('h1') else symbol,
-                        'sector': 'Unknown',  # Not easily scraped
+                        'name': name,
+                        'sector': sector,
                         'marketCap': 0,  # Not easily scraped
-                        'currentPrice': price,
-                        'previousClose': prev_close,
-                        'dayChange': change,
-                        'dayChangePercent': change_percent
+                        'currentPrice': round(price, 2),
+                        'previousClose': round(prev_close, 2),
+                        'dayChange': round(change, 2),
+                        'dayChangePercent': round(change_percent, 2),
+                        'volume': 0,  # Not easily scraped
+                        'lastUpdated': datetime.now().strftime('%Y-%m-%d')
                     },
-                    'recent_price': price,
+                    'recent_price': round(price, 2),
                     'price_history': {}
                 },
-                'status': 'success'
+                'status': 'success',
+                'timestamp': datetime.now().isoformat()
             }
             
+        except requests.RequestException as e:
+            raise Exception(f"Network error accessing Yahoo Finance: {str(e)}")
         except Exception as e:
-            print(f"Error scraping Yahoo Finance: {str(e)}")
-            
-            # Try a different Yahoo page as backup
-            try:
-                url = f"https://finance.yahoo.com/quote/{symbol}/history"
-                response = requests.get(url, headers=headers, timeout=10)
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Look for price in historical data
-                price_rows = soup.find_all('tr', {'class': 'BdT Bdc($seperatorColor)'})
-                if price_rows and len(price_rows) > 0:
-                    cells = price_rows[0].find_all('td')
-                    if len(cells) >= 5:
-                        price = float(cells[4].get_text().replace(',', ''))
-                        return {
-                            'instrument': symbol,
-                            'source': 'yahoo_history',
-                            'data': {
-                                'symbol': symbol,
-                                'info': {
-                                    'name': symbol,
-                                    'sector': 'Unknown',
-                                    'marketCap': 0,
-                                    'currentPrice': price,
-                                    'previousClose': price,  # We don't have this
-                                    'dayChange': 0,  # We don't have this
-                                    'dayChangePercent': 0  # We don't have this
-                                },
-                                'recent_price': price,
-                                'price_history': {}
-                            },
-                            'status': 'success'
-                        }
-            except:
-                pass  # Let it fall through to the original error
-            
-            raise Exception(f"Failed to scrape Yahoo Finance: {str(e)}")
+            raise Exception(f"Error scraping Yahoo Finance: {str(e)}")
     
-    def _generate_mock_data(self, symbol):
-        """Generate realistic mock data based on the symbol"""
-        # Use different price ranges for different symbols
-        symbol_first_letter = symbol[0].upper()
+    def get_crypto_data(self, crypto_symbol):
+        """Specific method for cryptocurrency data"""
+        # Ensure proper format for crypto symbols
+        if not crypto_symbol.endswith('-USD'):
+            if crypto_symbol.upper() in ['BTC', 'BITCOIN']:
+                crypto_symbol = 'BTC-USD'
+            elif crypto_symbol.upper() in ['ETH', 'ETHEREUM']:
+                crypto_symbol = 'ETH-USD'
+            elif crypto_symbol.upper() in ['SOL', 'SOLANA']:
+                crypto_symbol = 'SOL-USD'
+            elif crypto_symbol.upper() in ['ADA', 'CARDANO']:
+                crypto_symbol = 'ADA-USD'
+            else:
+                crypto_symbol = f"{crypto_symbol.upper()}-USD"
         
-        # Assign price range based on first letter (just for variety)
-        if symbol_first_letter in 'ABCDE':
-            base_price = random.uniform(50, 150)
-        elif symbol_first_letter in 'FGHIJ':
-            base_price = random.uniform(100, 300)
-        elif symbol_first_letter in 'KLMNO':
-            base_price = random.uniform(150, 400)
-        elif symbol_first_letter in 'PQRST':
-            base_price = random.uniform(75, 250)
-        else:
-            base_price = random.uniform(25, 200)
-            
-        # Generate change
-        change_percent = random.uniform(-3, 3)
-        change = base_price * change_percent / 100
-        prev_close = base_price - change
+        return self.get_stock_data(crypto_symbol)
+    
+    def get_multiple_quotes(self, symbols):
+        """Fetch data for multiple symbols"""
+        results = {}
         
-        # Mock price history (last 7 days)
-        price_history = {}
-        now = datetime.now()
-        
-        for i in range(7, 0, -1):
-            day = now - timedelta(days=i)
-            day_str = day.strftime('%Y-%m-%d')
-            day_price = base_price * (1 + random.uniform(-0.05, 0.05))
-            price_history[day_str] = round(day_price, 2)
-        
-        return {
-            'instrument': symbol,
-            'source': 'mock',
-            'data': {
-                'symbol': symbol,
-                'info': {
-                    'name': f"{symbol} Stock",
-                    'sector': random.choice(['Technology', 'Healthcare', 'Financial', 'Consumer', 'Industrial']),
-                    'marketCap': round(base_price * random.uniform(1000000, 1000000000), 0),
-                    'currentPrice': round(base_price, 2),
-                    'previousClose': round(prev_close, 2),
-                    'dayChange': round(change, 2),
-                    'dayChangePercent': round(change_percent, 2),
-                    'volume': random.randint(100000, 10000000)
-                },
-                'recent_price': round(base_price, 2),
-                'price_history': price_history
-            },
-            'status': 'success_mock'
-        }
-        
-    def _fetch_yahoo_crypto(self, crypto_symbol):
-        """Fetch cryptocurrency data from Yahoo Finance"""
-        import requests
-        from bs4 import BeautifulSoup
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        
-        try:
-            url = f"https://finance.yahoo.com/quote/{crypto_symbol}"
-            print(f"Fetching crypto data from: {url}")
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Get current price
-            price_element = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
-            if not price_element:
-                raise Exception("Price element not found")
+        for symbol in symbols:
+            try:
+                data = self.get_stock_data(symbol)
+                results[symbol] = data
                 
-            price = float(price_element.get('value', 0))
-            
-            # Get name
-            crypto_name = crypto_symbol.split('-')[0].upper()
-            if crypto_symbol.startswith('BTC'):
-                crypto_name = 'Bitcoin'
-            elif crypto_symbol.startswith('ETH'):
-                crypto_name = 'Ethereum'
-            elif crypto_symbol.startswith('SOL'):
-                crypto_name = 'Solana'
-            elif crypto_symbol.startswith('ADA'):
-                crypto_name = 'Cardano'
-            
-            # Get previous close
-            prev_close_element = None
-            table_rows = soup.find_all('tr')
-            for row in table_rows:
-                if row.find('td') and 'Previous Close' in row.find('td').get_text():
-                    prev_close_element = row.find_all('td')[1]
-                    break
-            
-            prev_close = float(prev_close_element.get_text().replace(',', '')) if prev_close_element else price
-            change = price - prev_close
-            change_percent = (change / prev_close * 100) if prev_close != 0 else 0
-            
-            return {
-                'instrument': crypto_symbol,
-                'source': 'yahoo_crypto',
-                'data': {
-                    'symbol': crypto_symbol,
-                    'info': {
-                        'name': f"{crypto_name} USD",
-                        'sector': 'Cryptocurrency',
-                        'marketCap': 0,  # Not easily scraped
-                        'currentPrice': price,
-                        'previousClose': prev_close,
-                        'dayChange': change,
-                        'dayChangePercent': change_percent
-                    },
-                    'recent_price': price,
-                    'price_history': {}
-                },
-                'status': 'success'
-            }
-            
-        except Exception as e:
-            print(f"Error scraping Yahoo Finance for crypto: {str(e)}")
-            raise Exception(f"Failed to scrape Yahoo Finance for {crypto_symbol}: {str(e)}")
-            
+                # Add small delay to avoid rate limiting
+                time.sleep(0.1)
+                
+            except Exception as e:
+                results[symbol] = {
+                    'instrument': symbol,
+                    'error': str(e),
+                    'status': 'error'
+                }
+        
+        return results
+    
+    def clear_cache(self):
+        """Clear the cache - useful for testing"""
+        self._cache.clear()
+        print("Market data cache cleared")
+    
+    def get_cache_info(self):
+        """Get information about cached data"""
+        return {
+            'cached_symbols': list(self._cache.keys()),
+            'cache_size': len(self._cache),
+            'cache_duration_seconds': self._cache_duration
+        }
+
 # Create a singleton instance
 market_data_service = MarketDataService()
 
 def get_market_data(symbol):
     """Helper function to get market data"""
     return market_data_service.get_stock_data(symbol)
+
+def get_crypto_data(crypto_symbol):
+    """Helper function to get cryptocurrency data"""
+    return market_data_service.get_crypto_data(crypto_symbol)
