@@ -92,6 +92,11 @@ async def process_hypothesis(request: Request, db: Session = Depends(get_db)):
         
         # Process through the workflow
         result = workflow.invoke(initial_state)
+                
+        # Add debug logging
+        logger.info(f"Raw contradictions type: {type(result.get('contradictions'))}")
+        logger.info(f"Raw contradictions content: {result.get('contradictions')}")
+        
         logger.info(f"Workflow result keys: {list(result.keys())}")
         
         # Check for errors
