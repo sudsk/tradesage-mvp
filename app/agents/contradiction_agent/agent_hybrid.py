@@ -207,7 +207,7 @@ class IntelligentContradictionProcessor:
             return self._intelligent_fallback_contradictions_strict(context, hypothesis, needed_count)
     
     def _parse_generated_contradictions_strict(self, ai_response: str) -> List[Dict]:
-        """Parse AI-generated contradictions with strict database constraints"""
+        """Parse AI-generated contradictions with clean output like confirmations"""
         
         contradictions = []
         lines = ai_response.split('\n')
@@ -216,20 +216,31 @@ class IntelligentContradictionProcessor:
             line = line.strip()
             if '|' in line and len(line.split('|')) >= 4:
                 parts = line.split('|')
-                quote = parts[0].strip()[:400]    # Enforce 400 char limit
-                reason = parts[1].strip()[:400]   # Enforce 400 char limit
-                source = parts[2].strip()[:40]    # Enforce 40 char limit
+                raw_quote = parts[0].strip()
+                raw_reason = parts[1].strip()
+                source = parts[2].strip()[:40]
                 strength = parts[3].strip()
+                
+                # FIXED: Clean the quote and reason like confirmations do
+                import re
+                # Remove JSON artifacts from the quote
+                clean_quote = re.sub(r'"quote":\s*"?', '', raw_quote)
+                clean_quote = re.sub(r'"reason":\s*"?', '', clean_quote)
+                clean_quote = clean_quote.strip(' "')[:400]
+                
+                clean_reason = re.sub(r'"quote":\s*"?', '', raw_reason)
+                clean_reason = re.sub(r'"reason":\s*"?', '', clean_reason)
+                clean_reason = clean_reason.strip(' "')[:400]
                 
                 # Validate strength
                 if strength not in ["Strong", "Medium", "Weak"]:
                     strength = "Medium"
                 
                 # Only add if meaningful content
-                if len(quote) > 20 and len(reason) > 10:
+                if len(clean_quote) > 20 and len(clean_reason) > 10:
                     contradictions.append({
-                        "quote": quote,
-                        "reason": reason,
+                        "quote": clean_quote,  # Clean text like confirmations
+                        "reason": clean_reason,
                         "source": source,
                         "strength": strength,
                         "processing": "ai_generated"
@@ -242,7 +253,7 @@ class IntelligentContradictionProcessor:
         return contradictions
     
     def _extract_contradictions_from_text_strict(self, text: str) -> List[Dict]:
-        """Extract contradictions from free-text with database constraints"""
+        """FIXED: Extract contradictions with clean quotes like confirmations do"""
         
         contradictions = []
         
@@ -251,16 +262,25 @@ class IntelligentContradictionProcessor:
         
         for section in sections:
             section = section.strip()
-            if len(section) > 50:  # Substantial content
-                # Clean section
+            if len(section) > 50:
+                # Clean the section to remove numbering and JSON artifacts
                 section = section.replace('1.', '').replace('2.', '').replace('3.', '').replace('-', '').strip()
                 
+                # FIXED: Remove JSON structure patterns that were causing the problem
+                import re
+                # Remove patterns like "quote": "..." or "reason": "..."
+                section = re.sub(r'"quote":\s*"?', '', section)
+                section = re.sub(r'"reason":\s*"?', '', section)
+                section = re.sub(r'^"', '', section)  # Remove leading quote
+                section = re.sub(r'"[,}]*$', '', section)  # Remove trailing quote/comma/brace
+                section = section.strip()
+                
                 if len(section) > 30:
-                    # Create safe contradiction
-                    quote = section[:350] + "..." if len(section) > 350 else section
+                    # Create clean contradiction exactly like confirmations do
+                    clean_quote = section[:350] + "..." if len(section) > 350 else section
                     
                     contradictions.append({
-                        "quote": quote,
+                        "quote": clean_quote,  # Clean text only, no JSON artifacts
                         "reason": "Market analysis identifies this as a potential challenge to the investment thesis.",
                         "source": "Market Analysis",
                         "strength": "Medium",
@@ -271,6 +291,7 @@ class IntelligentContradictionProcessor:
                 break
         
         return contradictions
+
     
     def _intelligent_fallback_contradictions_strict(self, context: Dict, hypothesis: str, count: int) -> List[Dict]:
         """Intelligent fallback with database constraints"""
