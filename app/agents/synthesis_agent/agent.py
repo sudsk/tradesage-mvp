@@ -5,7 +5,7 @@ from .config import MODEL_NAME, GENERATION_CONFIG, PROJECT_ID, LOCATION
 from .prompt import SYSTEM_INSTRUCTION
 import json
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 class SynthesisAgent:
