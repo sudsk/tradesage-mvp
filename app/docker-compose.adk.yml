@@ -1,0 +1,51 @@
+# docker-compose.adk.yml
+version: '3.8'
+
+services:
+  tradesage-adk:
+    build:
+      context: .
+      dockerfile: Dockerfile.adk
+    ports:
+      - "8001:8001"
+    environment:
+      - PROJECT_ID=tradesage-mvp
+      - REGION=us-central1
+      - USE_CLOUD_SQL=true
+      - DB_PASSWORD=${DB_PASSWORD}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+    depends_on:
+      - postgres
+  
+  tradesage-langgraph:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  
+    environment:
+      - PROJECT_ID=tradesage-mvp
+      - REGION=us-central1
+      - USE_CLOUD_SQL=true
+      - DB_PASSWORD=${DB_PASSWORD}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+    volumes:
+      - ./credentials.json:/app/credentials.json:ro
+    depends_on:
+      - postgres
+      
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=tradesage_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
