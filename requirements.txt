@@ -1,7 +1,7 @@
 # requirements_complete.txt - Complete requirements with database dependencies
 yfinance==0.2.33
 sec-api==1.0.17
-google-cloud-secret-manager>=2.16.0
+google-cloud-secret-manager>=2.20.0
 fastapi>=0.68.0
 uvicorn>=0.15.0
 requests>=2.26.0
@@ -22,3 +22,4 @@ traceloop-sdk~=0.38.7
 google-cloud-logging~=3.11.4
 google-cloud-aiplatform[agent-engines,evaluation]>=1.90.0,<2.0.0
 pip install google-adk>=1.0.0
+pydantic>=2.0.0
