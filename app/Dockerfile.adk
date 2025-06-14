@@ -1,0 +1,32 @@
+# Dockerfile.adk
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install ADK
+RUN pip install google-adk>=1.0.0
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PORT=8001
+
+# Expose port
+EXPOSE 8001
+
+# Run ADK version
+CMD ["python", "-m", "app.adk.main"]
