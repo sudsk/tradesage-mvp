@@ -20,4 +20,4 @@ opentelemetry-exporter-gcp-trace~=1.9.0
 langchain-core~=0.3.9
 traceloop-sdk~=0.38.7
 google-cloud-logging~=3.11.4
-google-cloud-aiplatform[evaluation,agent-engines]~=1.90.0
+google-cloud-aiplatform[agent-engines,evaluation]>=1.90.0,<2.0.0
