@@ -1,7 +1,7 @@
-# app/adk/agents/alert_agent.py
+# app/adk/agents/alert_agent.py - Fixed imports
 from google.adk.agents import Agent
 from app.config.adk_config import AGENT_CONFIGS
-from app.adk.tools import DATABASE_TOOL
+from app.adk.tools import database_save  # Import function directly
 
 ALERT_INSTRUCTION = """
 You are the Alert Agent for TradeSage AI. You generate actionable alerts and recommendations.
@@ -45,5 +45,5 @@ def create_alert_agent() -> Agent:
         model=config["model"],
         description=config["description"],
         instruction=ALERT_INSTRUCTION,
-        tools=[DATABASE_TOOL],
+        tools=[database_save],  # Function directly
     )
