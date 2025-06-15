@@ -1,7 +1,7 @@
-# app/adk/agents/contradiction_agent.py
+# app/adk/agents/contradiction_agent.py - Fixed imports
 from google.adk.agents import Agent
 from app.config.adk_config import AGENT_CONFIGS
-from app.adk.tools import RAG_TOOL, NEWS_TOOL
+from app.adk.tools import news_search  # Import the function directly
 
 CONTRADICTION_INSTRUCTION = """
 You are the Contradiction Agent for TradeSage AI. You identify risks and challenges to investment hypotheses.
@@ -40,5 +40,5 @@ def create_contradiction_agent() -> Agent:
         model=config["model"],
         description=config["description"],
         instruction=CONTRADICTION_INSTRUCTION,
-        tools=[RAG_TOOL, NEWS_TOOL],
+        tools=[news_search],  # Pass function directly, remove RAG for now
     )
