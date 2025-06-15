@@ -1,7 +1,7 @@
 # app/adk/agents/research_agent.py
 from google.adk.agents import Agent
 from app.config.adk_config import AGENT_CONFIGS
-from app.adk.tools import MARKET_DATA_TOOL, NEWS_TOOL, RAG_TOOL
+from app.adk.tools import market_data_search, news_search
 
 RESEARCH_INSTRUCTION = """
 You are the Research Agent for TradeSage AI. You conduct comprehensive market research.
@@ -36,5 +36,5 @@ def create_research_agent() -> Agent:
         model=config["model"],
         description=config["description"], 
         instruction=RESEARCH_INSTRUCTION,
-        tools=[MARKET_DATA_TOOL, NEWS_TOOL, RAG_TOOL],
+        tools=[market_data_search, news_search],  # Pass functions directly
     )
