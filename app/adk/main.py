@@ -8,7 +8,7 @@ from typing import Dict, Any
 
 from app.adk.orchestrator import orchestrator
 from app.database.database import get_db
-from app.database.crud import HypothesisCRUD, ContradictionCRUD, ConfirmationCRUD, AlertCRUD
+from app.database.crud import HypothesisCRUD, ContradictionCRUD, ConfirmationCRUD, AlertCRUD, DashboardCRUD
 from app.utils.text_processor import ResponseProcessor
 
 app = FastAPI(title="TradeSage AI - ADK Version", version="2.0.0")
@@ -114,6 +114,104 @@ async def process_hypothesis_adk(request_data: dict, db: Session = Depends(get_d
         print(f"❌ ADK processing error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"ADK processing failed: {str(e)}")
 
+@app.get("/dashboard")
+async def get_dashboard_data_adk(db: Session = Depends(get_db)):
+    """Get all hypothesis data for the dashboard - ADK version."""
+    try:
+        summaries = DashboardCRUD.get_all_hypotheses_summary(db)
+        
+        # Format for frontend (same as LangGraph version)
+        formatted_summaries = []
+        for summary in summaries:
+            if summary:
+                hypothesis = summary["hypothesis"]
+                formatted_summary = {
+                    "id": hypothesis.id,
+                    "title": hypothesis.title,
+                    "status": hypothesis.status.replace("_", " ").title(),
+                    "contradictions": summary["contradictions_count"],
+                    "confirmations": summary["confirmations_count"],
+                    "confidence": int(hypothesis.confidence_score * 100),
+                    "lastUpdated": hypothesis.updated_at.strftime("%d/%m/%Y %H:%M"),
+                    "trendData": summary["trend_data"],
+                    "contradictions_detail": [
+                        {
+                            "quote": c.quote,
+                            "reason": c.reason,
+                            "source": c.source,
+                            "strength": c.strength
+                        } for c in summary["contradictions_detail"]
+                    ],
+                    "confirmations_detail": [
+                        {
+                            "quote": c.quote,
+                            "reason": c.reason,
+                            "source": c.source,
+                            "strength": c.strength
+                        } for c in summary["confirmations_detail"]
+                    ]
+                }
+                formatted_summaries.append(formatted_summary)
+        
+        return {"status": "success", "data": formatted_summaries}
+        
+    except Exception as e:
+        print(f"❌ Dashboard error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Dashboard error: {str(e)}")
+
+@app.get("/hypothesis/{hypothesis_id}")
+async def get_hypothesis_detail_adk(hypothesis_id: int, db: Session = Depends(get_db)):
+    """Get detailed hypothesis information - ADK version."""
+    try:
+        summary = DashboardCRUD.get_hypothesis_summary(db, hypothesis_id)
+        if not summary:
+            raise HTTPException(status_code=404, detail="Hypothesis not found")
+        
+        return {
+            "status": "success",
+            "data": summary
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error getting hypothesis {hypothesis_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/alerts")
+async def get_alerts_adk(db: Session = Depends(get_db)):
+    """Get all unread alerts - ADK version."""
+    try:
+        alerts = AlertCRUD.get_unread_alerts(db)
+        return {
+            "status": "success",
+            "alerts": [
+                {
+                    "id": alert.id,
+                    "type": alert.alert_type,
+                    "message": alert.message,
+                    "priority": alert.priority,
+                    "created_at": alert.created_at.isoformat()
+                } for alert in alerts
+            ]
+        }
+    except Exception as e:
+        print(f"❌ Error getting alerts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/alerts/{alert_id}/read")
+async def mark_alert_read_adk(alert_id: int, db: Session = Depends(get_db)):
+    """Mark an alert as read - ADK version."""
+    try:
+        alert = AlertCRUD.mark_alert_as_read(db, alert_id)
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        return {"status": "success", "message": "Alert marked as read"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error marking alert {alert_id} as read: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)  # Different port from LangGraph version
