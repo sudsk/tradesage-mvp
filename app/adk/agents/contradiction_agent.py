@@ -1,375 +1,595 @@
-# app/adk/agents/contradiction_agent.py - Complete Enhanced Version with Model Integration
+# app/adk/agents/contradiction_agent.py 
 from google.adk.agents import Agent
 from app.config.adk_config import AGENT_CONFIGS
 from app.adk.tools import news_search
 from app.adk.agents.model_integration import ADKModelIntegrator
 from google.adk.sessions import InMemorySessionService
 import json
-import re
+import asyncio
+import concurrent.futures
 from typing import Dict, Any, List, Optional
+import re
+from datetime import datetime
 
-# Enhanced system instruction with ported logic
-ENHANCED_CONTRADICTION_INSTRUCTION = """
-You are the Enhanced Contradiction Agent for TradeSage AI. Generate SPECIFIC, QUANTITATIVE contradictions that challenge investment hypotheses.
+# Smart system instruction 
+SMART_CONTRADICTION_INSTRUCTION = """
+You are the Contradiction Agent for TradeSage AI. Use intelligent analysis to generate DIVERSE, SPECIFIC contradictions.
 
-CRITICAL REQUIREMENTS:
-1. Be SPECIFIC to the exact asset, current price, and target mentioned
-2. Include QUANTITATIVE data (prices, percentages, ratios, dates)
-3. Reference REAL market factors and recent developments
-4. Show CONCRETE challenges to reaching the price target
+Your approach:
+1. Intelligently analyze the asset's business model and context
+2. Generate diverse search strategies for different risk categories
+3. Extract specific business risks from retrieved documents
+4. Ensure contradictions cover different analytical perspectives
 
-EXCELLENT CONTRADICTION EXAMPLES:
-✅ "AAPL closed at $195.64, representing a 10.6% gap below the $220 target requiring significant appreciation in limited timeframe"
-✅ "Apple's forward P/E of 28.5x exceeds technology sector average of 22.1x, suggesting limited valuation expansion room"
-✅ "iPhone unit sales declined 3% year-over-year in China, Apple's second-largest market"
-✅ "Rising interest rates to 5.25% create headwinds for high-multiple technology stocks"
+RISK CATEGORIES TO COVER:
+- Business Model Risks (revenue streams, competitive moats)
+- Regulatory/Policy Risks (government, compliance, legal)
+- Competitive Risks (market share, disruption, new entrants)
+- Execution Risks (management, guidance, operational)
+- Macro/Economic Risks (rates, cycles, sector rotation)
 
-FOCUS AREAS FOR SPECIFIC CONTRADICTIONS:
-1. **Price Gap Analysis**: Current price vs target, required appreciation %
-2. **Valuation Concerns**: P/E, P/S ratios vs sector/historical averages
-3. **Business Headwinds**: Declining sales, margin pressure, competition
-4. **Market Structure**: Interest rates, sector rotation, institutional selling
-5. **Company-Specific**: Product delays, regulatory issues, guidance cuts
-6. **Technical Factors**: Resistance levels, trading volume, momentum
-
-DATABASE CONSTRAINTS:
-- Quote: Maximum 400 characters (2-3 sentences max)
-- Reason: Maximum 400 characters (2-3 sentences max)
-- Source: Maximum 40 characters
-- Strength: ONLY "Strong", "Medium", or "Weak"
-
-OUTPUT FORMAT:
-Generate 2-3 contradictions as structured analysis:
-{
-  "quote": "Specific factual statement with numbers/dates",
-  "reason": "Why this challenges reaching the price target",
-  "source": "Type of analysis (Technical/Fundamental/Market Structure)",
-  "strength": "Strong|Medium|Weak"
-}
-
-Make each contradiction SPECIFIC and QUANTITATIVE with real market factors.
+Be SPECIFIC to the asset and use REAL business factors, not generic statements.
 """
 
-class IntelligentContradictionProcessor:
-    """Ported from LangGraph - AI-powered contradiction processing with ADK integration"""
+class SmartContradictionProcessor:
+    """Smart processor that dynamically generates diverse contradictions"""
     
-    def __init__(self, agent, session_service: InMemorySessionService):
-        self.agent = agent
-        self.session_service = session_service
-        # Initialize the model integrator for actual ADK calls
-        if agent and session_service:
-            self.model_integrator = ADKModelIntegrator(agent, session_service)
-        else:
-            self.model_integrator = None
+    def __init__(self, model, hybrid_service=None):
+        self.model = model
+        self.hybrid_service = hybrid_service
     
-    def process_contradictions(self, raw_contradictions: List[Dict], context: Dict, hypothesis: str) -> List[Dict]:
-        """Use AI to intelligently process and clean contradictions"""
+    def process_contradictions(self, hypothesis: str, context: Dict, research_data: Dict) -> List[Dict]:
+        """Process contradictions using smart, dynamic approach"""
         
-        print("🧠 Using enhanced AI to process contradictions...")
+        print("🧠 Using smart dynamic processing for contradictions...")
         
-        cleaned_contradictions = []
+        # Step 1: Intelligently analyze the asset context
+        asset_analysis = self._analyze_asset_context(context)
         
-        for raw_contradiction in raw_contradictions:
-            # Use AI to evaluate and clean each contradiction
-            processed = self._ai_process_single_contradiction(raw_contradiction, context, hypothesis)
-            if processed:
-                cleaned_contradictions.append(processed)
+        # Step 2: Generate diverse search strategies based on analysis
+        search_strategies = self._generate_smart_search_strategies(asset_analysis, hypothesis)
         
-        # If we don't have enough quality contradictions, generate new ones
-        if len(cleaned_contradictions) < 2:
-            print("   🔄 Insufficient quality contradictions, generating new ones...")
-            ai_generated = self._ai_generate_fresh_contradictions(context, hypothesis, len(cleaned_contradictions))
-            cleaned_contradictions.extend(ai_generated)
+        # Step 3: Search for diverse evidence using RAG
+        diverse_evidence = []
+        if self.hybrid_service:
+            diverse_evidence = self._search_diverse_evidence(search_strategies)
         
-        # Add universal risks if still insufficient
-        if len(cleaned_contradictions) < 2:
-            print("   🛡️ Adding universal risk factors...")
-            universal_risks = self._generate_universal_risks(context, hypothesis)
-            cleaned_contradictions.extend(universal_risks)
+        # Step 4: Generate contradictions using evidence + AI
+        contradictions = self._generate_diverse_contradictions(
+            hypothesis, asset_analysis, diverse_evidence
+        )
         
-        return cleaned_contradictions[:3]  # Return top 3
+        # Step 5: Ensure diversity and quality
+        final_contradictions = self._ensure_contradiction_diversity(contradictions)
+        
+        print(f"   ✅ Smart processing: {len(final_contradictions)} diverse contradictions")
+        return final_contradictions
     
-    def _ai_process_single_contradiction(self, raw_contradiction: Dict, context: Dict, hypothesis: str) -> Optional[Dict]:
-        """Use AI to evaluate, clean, and enhance a single contradiction"""
-        
-        raw_quote = raw_contradiction.get("quote", "")
-        raw_reason = raw_contradiction.get("reason", "")
+    def _analyze_asset_context(self, context: Dict) -> Dict[str, Any]:
+        """Intelligently analyze asset context to understand business model"""
         
         asset_info = context.get("asset_info", {})
         
-        evaluation_prompt = f"""
-        You are an expert financial analyst reviewing investment risks.
-        
-        TASK: Evaluate and improve this risk factor for the hypothesis: "{hypothesis}"
-        
-        ASSET CONTEXT:
-        - Asset: {asset_info.get("asset_name", "Unknown")} ({asset_info.get("primary_symbol", "N/A")})
-        - Type: {asset_info.get("asset_type", "Unknown")}
-        - Sector: {asset_info.get("sector", "Unknown")}
-        
-        RAW RISK FACTOR:
-        Quote: "{raw_quote}"
-        Reason: "{raw_reason}"
-        
-        REQUIREMENTS:
-        1. Make it SPECIFIC to {asset_info.get("asset_name", "this asset")}
-        2. Make it ACTIONABLE and REALISTIC
-        3. Keep Quote under 400 characters
-        4. Keep Reason under 400 characters
-        5. NO generic placeholder text
-        
-        If this risk factor is valuable, improve it. If it's generic/useless, create a better one.
-        
-        Respond with JSON:
-        {{
-            "quote": "Specific risk statement about {asset_info.get("asset_name", "the asset")}",
-            "reason": "Why this challenges the investment thesis",
-            "source": "Risk Analysis",
-            "strength": "Strong|Medium|Weak"
-        }}
-        """
-        
-        try:
-            response = self._generate_content_via_agent(evaluation_prompt)
-            return self._parse_ai_evaluation(response, raw_contradiction)
-        except Exception as e:
-            print(f"   ⚠️  AI evaluation failed for contradiction: {str(e)}")
-            return None
-    
-    def _generate_content_via_agent(self, prompt: str) -> str:
-        """Generate content using the agent's model - ADK implementation"""
-        if not self.model_integrator:
-            # Return fallback if model integrator is not available
-            return '{"quote": "Market volatility presents challenges", "reason": "Economic uncertainty affects investment outcomes", "source": "Market Analysis", "strength": "Medium"}'
-        
-        try:
-            # Use the ADK model integrator to generate content
-            response = self.model_integrator.generate_content_sync(prompt, context_id="contradiction_eval")
-            return response if response else '{"quote": "Market analysis indicates potential risks", "reason": "Economic factors may impact investment outcomes", "source": "Risk Analysis", "strength": "Medium"}'
-        except Exception as e:
-            print(f"⚠️  ADK model generation failed: {str(e)}")
-            return '{"quote": "Market analysis indicates potential risks", "reason": "Economic factors may impact investment outcomes", "source": "Risk Analysis", "strength": "Medium"}'
-    
-    def _parse_ai_evaluation(self, ai_response: str, original: Dict) -> Optional[Dict]:
-        """Parse AI evaluation response"""
-        
-        try:
-            # Clean response for JSON parsing
-            cleaned_response = ai_response.strip()
-            if cleaned_response.startswith('```json'):
-                cleaned_response = cleaned_response.replace('```json', '').replace('```', '').strip()
-            elif cleaned_response.startswith('```'):
-                cleaned_response = cleaned_response.replace('```', '').strip()
+        analysis = {
+            "asset_name": asset_info.get("asset_name", "Unknown"),
+            "asset_type": asset_info.get("asset_type", "unknown"),
+            "sector": asset_info.get("sector", "Unknown"),
+            "business_model": asset_info.get("business_model", ""),
+            "competitors": asset_info.get("competitors", []),
+            "primary_symbol": asset_info.get("primary_symbol", ""),
             
-            evaluation = json.loads(cleaned_response)
-            
-            # Validate required fields
-            quote = evaluation.get("quote", "").strip()[:400]
-            reason = evaluation.get("reason", "").strip()[:400]
-            source = evaluation.get("source", "Risk Analysis").strip()[:40]
-            strength = evaluation.get("strength", "Medium")
-            
-            # Validate strength
-            if strength not in ["Strong", "Medium", "Weak"]:
-                strength = "Medium"
-            
-            # Ensure meaningful content
-            if len(quote) > 20 and len(reason) > 10:
-                return {
-                    "quote": quote,
-                    "reason": reason,
-                    "source": source,
-                    "strength": strength
-                }
-            else:
-                return None
-                
-        except json.JSONDecodeError:
-            # Fallback: extract from text
-            return self._extract_improvement_from_text(ai_response, original)
+            # Derived insights
+            "is_tech_company": self._is_tech_company(asset_info),
+            "is_consumer_facing": self._is_consumer_facing(asset_info),
+            "is_regulated_industry": self._is_regulated_industry(asset_info),
+            "has_platform_business": self._has_platform_business(asset_info),
+            "revenue_model_type": self._identify_revenue_model(asset_info)
+        }
+        
+        print(f"   📊 Asset analysis: {analysis['asset_name']} - {analysis['revenue_model_type']} in {analysis['sector']}")
+        return analysis
     
-    def _extract_improvement_from_text(self, text: str, original: Dict) -> Optional[Dict]:
-        """Extract improvement from free-text AI response"""
+    def _is_tech_company(self, asset_info: Dict) -> bool:
+        """Check if asset is a technology company"""
+        sector = asset_info.get("sector", "").lower()
+        business_model = asset_info.get("business_model", "").lower()
         
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        
-        # Look for quote-like content
-        quote = ""
-        reason = ""
-        
-        for line in lines:
-            if len(line) > 30 and not any(line.startswith(word) for word in ['TASK:', 'ASSET:', 'REQUIREMENTS:', 'Respond']):
-                if not quote and '"' in line:
-                    quote = line.strip('"\'').strip()[:400]
-                elif not reason and line != quote and len(line) > 20:
-                    reason = line.strip('"\'').strip()[:400]
-        
-        if quote and reason:
-            return {
-                "quote": quote,
-                "reason": reason,
-                "source": "AI Analysis",
-                "strength": "Medium"
-            }
-        
-        return None
+        tech_indicators = ["technology", "software", "cloud", "ai", "digital", "internet", "platform"]
+        return any(indicator in sector or indicator in business_model for indicator in tech_indicators)
     
-    def _ai_generate_fresh_contradictions(self, context: Dict, hypothesis: str, existing_count: int) -> List[Dict]:
-        """Generate completely fresh contradictions using AI with database constraints"""
+    def _is_consumer_facing(self, asset_info: Dict) -> bool:
+        """Check if asset has consumer-facing business"""
+        business_model = asset_info.get("business_model", "").lower()
+        sector = asset_info.get("sector", "").lower()
         
-        needed_count = max(3 - existing_count, 0)
-        if needed_count == 0:
+        consumer_indicators = ["consumer", "retail", "app store", "subscription", "brand", "customer"]
+        return any(indicator in business_model or indicator in sector for indicator in consumer_indicators)
+    
+    def _is_regulated_industry(self, asset_info: Dict) -> bool:
+        """Check if asset operates in heavily regulated industry"""
+        sector = asset_info.get("sector", "").lower()
+        asset_type = asset_info.get("asset_type", "").lower()
+        
+        regulated_indicators = ["financial", "healthcare", "energy", "utility", "bank", "insurance", "crypto"]
+        return any(indicator in sector or indicator in asset_type for indicator in regulated_indicators)
+    
+    def _has_platform_business(self, asset_info: Dict) -> bool:
+        """Check if asset has platform business model"""
+        business_model = asset_info.get("business_model", "").lower()
+        
+        platform_indicators = ["platform", "marketplace", "app store", "ecosystem", "network"]
+        return any(indicator in business_model for indicator in platform_indicators)
+    
+    def _identify_revenue_model(self, asset_info: Dict) -> str:
+        """Identify the primary revenue model type"""
+        business_model = asset_info.get("business_model", "").lower()
+        sector = asset_info.get("sector", "").lower()
+        
+        if "subscription" in business_model or "saas" in business_model:
+            return "subscription"
+        elif "platform" in business_model or "marketplace" in business_model:
+            return "platform"
+        elif "advertising" in business_model or "ad" in business_model:
+            return "advertising"
+        elif "hardware" in business_model or "manufacturing" in sector:
+            return "hardware"
+        elif "services" in business_model:
+            return "services"
+        else:
+            return "traditional"
+    
+    def _generate_smart_search_strategies(self, asset_analysis: Dict, hypothesis: str) -> Dict[str, str]:
+        """Generate smart search strategies based on asset analysis"""
+        
+        asset_name = asset_analysis["asset_name"]
+        asset_type = asset_analysis["asset_type"]
+        sector = asset_analysis["sector"]
+        
+        strategies = {}
+        
+        # 1. Business Model Specific Risks
+        revenue_model = asset_analysis["revenue_model_type"]
+        if revenue_model == "subscription":
+            strategies["subscription_risk"] = f"{asset_name} subscription churn retention growth"
+        elif revenue_model == "platform":
+            strategies["platform_risk"] = f"{asset_name} platform regulation antitrust policy"
+        elif revenue_model == "advertising":
+            strategies["advertising_risk"] = f"{asset_name} advertising revenue decline privacy"
+        elif revenue_model == "hardware":
+            strategies["hardware_risk"] = f"{asset_name} supply chain manufacturing cost"
+        
+        # 2. Technology Company Specific
+        if asset_analysis["is_tech_company"]:
+            strategies["tech_regulation"] = f"{asset_name} technology regulation antitrust big tech"
+            strategies["tech_competition"] = f"{asset_name} technology disruption innovation competition"
+        
+        # 3. Consumer Facing Risks
+        if asset_analysis["is_consumer_facing"]:
+            strategies["consumer_sentiment"] = f"{asset_name} consumer sentiment brand reputation"
+            strategies["market_saturation"] = f"{asset_name} market saturation user growth"
+        
+        # 4. Regulated Industry Risks
+        if asset_analysis["is_regulated_industry"]:
+            strategies["regulatory_change"] = f"{asset_name} regulatory change compliance cost"
+            strategies["policy_risk"] = f"{asset_name} policy change government regulation"
+        
+        # 5. Sector Specific Risks
+        strategies["sector_headwinds"] = f"{sector} sector headwinds challenges {asset_name}"
+        strategies["competitive_pressure"] = f"{asset_name} competitive pressure market share"
+        
+        # 6. Economic/Macro Risks (universal)
+        strategies["macro_headwinds"] = f"{asset_name} economic headwinds interest rates recession"
+        
+        print(f"   🎯 Generated {len(strategies)} smart search strategies")
+        return strategies
+    
+    def _search_diverse_evidence(self, search_strategies: Dict[str, str]) -> List[Dict]:
+        """Search for diverse evidence using smart strategies"""
+        
+        if not self.hybrid_service:
             return []
         
-        asset_info = context.get("asset_info", {})
+        all_evidence = []
         
-        generation_prompt = f"""
-        Generate {needed_count} HIGH-QUALITY, SPECIFIC risk factors for this investment hypothesis:
+        # Search with each strategy (limit to prevent overload)
+        for strategy_name, query in list(search_strategies.items())[:5]:  # Top 5 strategies
+            try:
+                print(f"     📚 RAG search ({strategy_name}): {query}")
+                
+                # Run RAG search
+                result = self._run_rag_search_sync(query)
+                
+                if result and result.get("historical_insights"):
+                    for insight in result["historical_insights"][:2]:  # Top 2 per strategy
+                        insight["strategy_type"] = strategy_name
+                        insight["search_query"] = query
+                        all_evidence.append(insight)
+                
+            except Exception as e:
+                print(f"       ❌ Search failed for {strategy_name}: {str(e)}")
+                continue
+        
+        print(f"     📊 Found {len(all_evidence)} pieces of evidence")
+        return all_evidence
+    
+    def _run_rag_search_sync(self, query: str) -> Dict:
+        """Run RAG search synchronously with timeout"""
+        try:
+            # Use thread pool for async RAG search
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(self._run_rag_in_loop, query)
+                return future.result(timeout=8)
+        except Exception as e:
+            print(f"       ⚠️ RAG search failed: {str(e)}")
+            return {}
+    
+    def _run_rag_in_loop(self, query: str) -> Dict:
+        """Run RAG search in new event loop"""
+        try:
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(
+                    self.hybrid_service._rag_search(query, limit=3)
+                )
+            finally:
+                new_loop.close()
+        except Exception as e:
+            return {}
+    
+    def _generate_diverse_contradictions(self, hypothesis: str, asset_analysis: Dict, 
+                                       evidence: List[Dict]) -> List[Dict]:
+        """Generate diverse contradictions using evidence + AI"""
+        
+        contradictions = []
+        
+        # Process evidence into contradictions
+        for evidence_item in evidence:
+            contradiction = self._process_evidence_to_contradiction(evidence_item, asset_analysis)
+            if contradiction:
+                contradictions.append(contradiction)
+        
+        # If not enough from evidence, generate AI contradictions
+        if len(contradictions) < 3:
+            ai_contradictions = self._generate_ai_contradictions(
+                hypothesis, asset_analysis, 3 - len(contradictions)
+            )
+            contradictions.extend(ai_contradictions)
+        
+        return contradictions
+    
+    def _process_evidence_to_contradiction(self, evidence: Dict, asset_analysis: Dict) -> Optional[Dict]:
+        """Process evidence into contradiction format"""
+        
+        content = evidence.get("full_content", "")
+        strategy_type = evidence.get("strategy_type", "unknown")
+        similarity = evidence.get("similarity", 0)
+        asset_name = asset_analysis["asset_name"]
+        
+        # Quality filters
+        if similarity < 0.3 or len(content) < 100:
+            return None
+        
+        # Must mention asset or be relevant
+        if asset_name.lower() not in content.lower() and similarity < 0.5:
+            return None
+        
+        # Must have risk indicators
+        if not self._has_risk_indicators(content):
+            return None
+        
+        # Create contradiction with strategy-specific processing
+        quote = content[:350] + "..." if len(content) > 350 else content
+        
+        # Map strategy to source and reason
+        strategy_mapping = {
+            "subscription_risk": ("Business Model", f"Subscription model challenges could impact {asset_name} recurring revenue growth."),
+            "platform_risk": ("Regulatory Risk", f"Platform regulation could force {asset_name} to change business model."),
+            "tech_regulation": ("Tech Regulation", f"Technology regulation could impose constraints on {asset_name} operations."),
+            "consumer_sentiment": ("Brand Risk", f"Consumer sentiment shifts could affect {asset_name} market position."),
+            "regulatory_change": ("Regulatory Risk", f"Regulatory changes could increase compliance costs for {asset_name}."),
+            "sector_headwinds": ("Sector Analysis", f"Sector-wide challenges could pressure {asset_name} performance."),
+            "competitive_pressure": ("Competition", f"Competitive pressures could erode {asset_name} market advantages.")
+        }
+        
+        source, reason = strategy_mapping.get(strategy_type, ("Market Analysis", f"Market analysis suggests challenges for {asset_name}."))
+        
+        return {
+            "quote": quote,
+            "reason": reason[:400],
+            "source": source[:40],
+            "strength": "Strong" if similarity > 0.7 else "Medium",
+            "strategy_type": strategy_type,
+            "similarity": similarity
+        }
+    
+    def _has_risk_indicators(self, content: str) -> bool:
+        """Check if content has risk indicators"""
+        content_lower = content.lower()
+        
+        risk_words = [
+            "risk", "challenge", "threat", "concern", "pressure", "headwind", 
+            "decline", "fall", "competition", "regulation", "uncertainty",
+            "disruption", "weakness", "vulnerable", "problem"
+        ]
+        
+        return sum(1 for word in risk_words if word in content_lower) >= 2
+    
+    def _generate_ai_contradictions(self, hypothesis: str, asset_analysis: Dict, count: int) -> List[Dict]:
+        """Generate AI contradictions using smart prompting"""
+        
+        if count <= 0:
+            return []
+        
+        asset_name = asset_analysis["asset_name"]
+        asset_type = asset_analysis["asset_type"]
+        sector = asset_analysis["sector"]
+        revenue_model = asset_analysis["revenue_model_type"]
+        
+        # Smart prompt based on asset analysis
+        prompt = f"""
+        Generate {count} specific business risk factors for this investment hypothesis:
         
         HYPOTHESIS: "{hypothesis}"
         
-        ASSET DETAILS:
-        - Name: {asset_info.get("asset_name", "Unknown")}
-        - Symbol: {asset_info.get("primary_symbol", "N/A")}
-        - Type: {asset_info.get("asset_type", "Unknown")}
-        - Sector: {asset_info.get("sector", "Unknown")}
+        ASSET ANALYSIS:
+        - Company: {asset_name}
+        - Type: {asset_type} 
+        - Sector: {sector}
+        - Revenue Model: {revenue_model}
+        - Tech Company: {asset_analysis["is_tech_company"]}
+        - Consumer Facing: {asset_analysis["is_consumer_facing"]}
+        - Regulated Industry: {asset_analysis["is_regulated_industry"]}
         
-        REQUIREMENTS for each risk factor:
-        1. SPECIFIC to {asset_info.get("asset_name", "this asset")} - mention the company/asset by name
-        2. REALISTIC and ACTIONABLE - based on actual market dynamics
-        3. CONCISE - Quote under 400 chars, Reason under 400 chars
-        4. PROFESSIONAL - no placeholder text or generic statements
+        Focus on SPECIFIC risks relevant to this business model:
+        - Business model vulnerabilities
+        - Sector-specific challenges  
+        - Competitive threats
+        - Regulatory/policy risks
+        - Execution challenges
         
-        Generate realistic risks like:
-        - Valuation concerns (if price seems high)
-        - Competition threats (specific to this industry)
-        - Market/economic headwinds
-        - Company-specific execution risks
-        - Regulatory or sector-specific challenges
+        Requirements:
+        - Be specific to {asset_name} business
+        - Under 400 characters each
+        - Realistic and actionable
+        - Different risk categories
         
-        Format each as: quote|reason|source|strength
-        
-        Generate {needed_count} specific, realistic risk factors for {asset_info.get("asset_name", "this asset")}.
+        Format: quote|reason|source|strength
         """
         
         try:
-            response = self._generate_content_via_agent(generation_prompt)
-            return self._parse_generated_contradictions(response)
+            response = self.model.generate_content(prompt)
+            return self._parse_ai_contradictions(response.text)
         except Exception as e:
             print(f"   ❌ AI contradiction generation failed: {str(e)}")
-            return self._intelligent_fallback_contradictions(context, hypothesis, needed_count)
+            return self._get_smart_fallbacks(asset_analysis, count)
     
-    def _parse_generated_contradictions(self, ai_response: str) -> List[Dict]:
-        """Parse AI-generated contradictions"""
+    def _parse_ai_contradictions(self, response: str) -> List[Dict]:
+        """Parse AI contradictions from response"""
         
         contradictions = []
-        lines = ai_response.split('\n')
+        lines = response.split('\n')
         
         for line in lines:
             line = line.strip()
             if '|' in line and len(line.split('|')) >= 4:
                 parts = line.split('|')
-                raw_quote = parts[0].strip()
-                raw_reason = parts[1].strip()
+                
+                quote = parts[0].strip()[:400]
+                reason = parts[1].strip()[:400]
                 source = parts[2].strip()[:40]
                 strength = parts[3].strip()
                 
-                # Clean the quote and reason
-                clean_quote = self._clean_text(raw_quote)[:400]
-                clean_reason = self._clean_text(raw_reason)[:400]
-                
-                # Validate strength
                 if strength not in ["Strong", "Medium", "Weak"]:
                     strength = "Medium"
                 
-                # Only add if meaningful content
-                if len(clean_quote) > 20 and len(clean_reason) > 10:
+                if len(quote) > 20 and len(reason) > 15:
                     contradictions.append({
-                        "quote": clean_quote,
-                        "reason": clean_reason,
+                        "quote": quote,
+                        "reason": reason,
                         "source": source,
-                        "strength": strength
+                        "strength": strength,
+                        "method": "ai_generated"
                     })
         
         return contradictions
     
-    def _clean_text(self, text: str) -> str:
-        """Clean text by removing JSON artifacts"""
-        # Remove JSON structure patterns
-        text = re.sub(r'"quote":\s*"?', '', text)
-        text = re.sub(r'"reason":\s*"?', '', text)
-        text = re.sub(r'^"', '', text)  # Remove leading quote
-        text = re.sub(r'"[,}]*$', '', text)  # Remove trailing quote/comma/brace
-        return text.strip()
-    
-    def _intelligent_fallback_contradictions(self, context: Dict, hypothesis: str, count: int) -> List[Dict]:
-        """Intelligent fallback with database constraints"""
+    def _get_smart_fallbacks(self, asset_analysis: Dict, count: int) -> List[Dict]:
+        """Get smart fallbacks based on asset analysis"""
         
-        asset_info = context.get("asset_info", {}) if context else {}
-        asset_name = asset_info.get("asset_name", "the asset")
-        asset_type = asset_info.get("asset_type", "unknown")
-        sector = asset_info.get("sector", "financial markets")
+        asset_name = asset_analysis["asset_name"]
+        sector = asset_analysis["sector"]
+        revenue_model = asset_analysis["revenue_model_type"]
         
-        fallback_contradictions = []
+        fallbacks = []
         
-        # Market valuation risk (universal)
-        fallback_contradictions.append({
-            "quote": f"Current market valuations may limit {asset_name} upside potential given economic uncertainty.",
-            "reason": "High market multiples and economic volatility often constrain further price appreciation.",
-            "source": "Valuation Analysis",
-            "strength": "Medium"
-        })
-        
-        # Asset-type specific risks
-        if asset_type in ["stock", "equity"]:
-            fallback_contradictions.append({
-                "quote": f"{asset_name} faces competitive pressures in {sector} that could impact margins.",
-                "reason": f"Increased competition in {sector} can erode market share and pricing power.",
-                "source": "Competition Analysis",
-                "strength": "Medium"
-            })
-        
-        elif asset_type in ["crypto", "cryptocurrency"]:
-            fallback_contradictions.append({
-                "quote": f"{asset_name} faces regulatory uncertainty and extreme volatility risks.",
-                "reason": "Cryptocurrency markets remain sensitive to regulatory changes and policy decisions.",
+        # Business model specific fallback
+        if revenue_model == "platform" and asset_analysis["is_tech_company"]:
+            fallbacks.append({
+                "quote": f"Regulatory scrutiny on platform businesses could impact {asset_name} operations and revenue model.",
+                "reason": f"Platform regulation trends pose risks to {asset_name} business model flexibility.",
                 "source": "Regulatory Risk",
                 "strength": "Strong"
             })
         
-        return fallback_contradictions[:count]
+        # Competitive fallback
+        if asset_analysis["is_consumer_facing"]:
+            fallbacks.append({
+                "quote": f"Increasing competition in {sector} could pressure {asset_name} market share and pricing power.",
+                "reason": f"Competitive dynamics may limit {asset_name} ability to maintain market position.",
+                "source": "Competition",
+                "strength": "Medium"
+            })
+        
+        # Universal fallback
+        fallbacks.append({
+            "quote": f"Economic headwinds and interest rate environment present challenges for {asset_name} valuation.",
+            "reason": f"Macroeconomic factors could constrain {asset_name} growth and investment flows.",
+            "source": "Economic Risk",
+            "strength": "Medium"
+        })
+        
+        return fallbacks[:count]
     
-    def _generate_universal_risks(self, context: Dict, hypothesis: str) -> List[Dict]:
-        """Generate universal investment risks that apply to any asset"""
+    def _ensure_contradiction_diversity(self, contradictions: List[Dict]) -> List[Dict]:
+        """Ensure contradictions are diverse across categories"""
+        
+        if len(contradictions) <= 3:
+            return contradictions[:3]
+        
+        # Group by strategy type / source
+        by_category = {}
+        for contradiction in contradictions:
+            category = contradiction.get("strategy_type") or contradiction.get("source", "unknown")
+            if category not in by_category:
+                by_category[category] = []
+            by_category[category].append(contradiction)
+        
+        # Select best from each category
+        diverse_contradictions = []
+        for category, group in by_category.items():
+            # Sort by similarity or quality
+            group.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+            diverse_contradictions.append(group[0])
+            
+            if len(diverse_contradictions) >= 3:
+                break
+        
+        return diverse_contradictions[:3]
+
+class SmartContradictionAgent:
+    """Smart contradiction agent with dynamic processing (no hardcoding)"""
+    
+    def __init__(self):
+        try:
+            import vertexai
+            from vertexai.preview.generative_models import GenerativeModel
+            
+            vertexai.init(project="tradesage-mvp", location="us-central1")
+            self.model = GenerativeModel(
+                model_name="gemini-2.0-flash",
+                system_instruction=SMART_CONTRADICTION_INSTRUCTION
+            )
+            
+            # Initialize RAG service
+            self._initialize_hybrid_service()
+            
+        except Exception as e:
+            print(f"Error initializing Smart Contradiction Agent: {e}")
+            self.model = None
+            self.hybrid_service = None
+    
+    def _initialize_hybrid_service(self):
+        """Initialize the hybrid RAG service"""
+        try:
+            from app.services.hybrid_rag_service import get_hybrid_rag_service
+            self.hybrid_service = get_hybrid_rag_service()
+            print("✅ RAG service connected to Smart Contradiction Agent")
+        except Exception as e:
+            print(f"⚠️  RAG service initialization failed: {str(e)}")
+            self.hybrid_service = None
+    
+    def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Main processing method using smart, dynamic approach"""
+        
+        if not self.model:
+            return {"error": "Model not initialized"}
+        
+        hypothesis = input_data.get("hypothesis", "")
+        processed_hypothesis = input_data.get("processed_hypothesis", hypothesis)
+        research_data = input_data.get("research_data", {})
+        context = input_data.get("context", {})
+        
+        print(f"🎯 Smart contradiction processing for: {processed_hypothesis}")
+        
+        try:
+            # Initialize smart processor
+            processor = SmartContradictionProcessor(self.model, self.hybrid_service)
+            
+            # Process using smart, dynamic approach
+            contradictions = processor.process_contradictions(
+                processed_hypothesis, context, research_data
+            )
+            
+            return {
+                "contradictions": contradictions,
+                "analysis": self._create_analysis(contradictions, context),
+                "processing_method": "smart_dynamic",
+                "status": "success"
+            }
+            
+        except Exception as e:
+            print(f"❌ Smart contradiction processing failed: {str(e)}")
+            
+            # Simple fallback
+            fallback_contradictions = self._get_simple_fallbacks(context)
+            
+            return {
+                "contradictions": fallback_contradictions,
+                "analysis": "Used smart fallback analysis based on asset context.",
+                "processing_method": "smart_fallback",
+                "status": "error_fallback"
+            }
+    
+    def _get_simple_fallbacks(self, context: Dict) -> List[Dict]:
+        """Get simple fallbacks when processing fails"""
         
         asset_info = context.get("asset_info", {}) if context else {}
-        asset_name = asset_info.get("asset_name", "this investment")
+        asset_name = asset_info.get("asset_name", "the asset")
+        sector = asset_info.get("sector", "Unknown")
         
-        universal_risks = [
+        return [
             {
-                "quote": f"Market volatility and geopolitical events could negatively impact {asset_name} price action.",
-                "reason": "External macro factors often override fundamental analysis in short-term price movements.",
-                "source": "Market Risk",
+                "quote": f"Competitive pressures in {sector} could impact {asset_name} market position and pricing power.",
+                "reason": f"Industry competition may limit {asset_name} ability to maintain competitive advantages.",
+                "source": "Competition",
                 "strength": "Medium"
             },
             {
-                "quote": f"Interest rate changes and monetary policy shifts pose risks to {asset_name} valuation.",
-                "reason": "Changes in interest rates affect discount rates and relative asset attractiveness.",
-                "source": "Monetary Policy",
+                "quote": f"Regulatory changes and policy shifts present risks to {asset_name} business operations.",
+                "reason": f"Policy developments could create operational headwinds for {asset_name}.",
+                "source": "Regulatory Risk",
+                "strength": "Medium"
+            },
+            {
+                "quote": f"Economic uncertainty and market volatility challenge {asset_name} investment thesis.",
+                "reason": "Macroeconomic factors could affect discount rates and investment flows.",
+                "source": "Economic Risk", 
                 "strength": "Medium"
             }
         ]
+    
+    def _create_analysis(self, contradictions: List[Dict], context: Dict) -> str:
+        """Create analysis summary"""
         
-        return universal_risks
+        asset_info = context.get("asset_info", {}) if context else {}
+        asset_name = asset_info.get("asset_name", "the asset")
+        
+        strategy_types = [c.get("strategy_type", "unknown") for c in contradictions]
+        sources = [c.get("source", "Unknown") for c in contradictions]
+        
+        analysis = f"""
+        Smart Dynamic Risk Analysis for {asset_name}:
+        - Risk categories analyzed: {len(set(strategy_types))} unique areas
+        - Sources: {', '.join(set(sources))}
+        - Processing method: Context-aware dynamic generation
+        - Business model considerations: Integrated
+        
+        Assessment: Smart analysis identified diverse business risks using
+        dynamic search strategies tailored to the asset's specific business model
+        and market context, without hardcoded company patterns.
+        """
+        
+        return analysis.strip()
 
 def create_contradiction_agent() -> Agent:
-    """Create the enhanced contradiction agent with ported LangGraph logic."""
+    """Create the smart dynamic contradiction agent."""
     config = AGENT_CONFIGS["contradiction_agent"]
     
     return Agent(
         name=config["name"],
         model=config["model"],
         description=config["description"],
-        instruction=ENHANCED_CONTRADICTION_INSTRUCTION,
+        instruction=SMART_CONTRADICTION_INSTRUCTION,
         tools=[news_search],
     )
