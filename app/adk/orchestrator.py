@@ -225,78 +225,7 @@ class TradeSageOrchestrator:
                     "context": locals().get("context", {}),
                 }
             }
-
-    async def _run_agent_with_tool_handling(self, agent_name: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Run agent with proper handling of both text and function call responses."""
-        if agent_name not in self.agents:
-            raise ValueError(f"Agent '{agent_name}' not found")
-        
-        try:
-            agent = self.agents[agent_name]
-            
-            # Create session for this agent
-            app_name = f"tradesage_{agent_name}"
-            user_id = "tradesage_user"
-            session_id = f"session_{agent_name}_{id(input_data)}"
-            
-            # Create session
-            session = await self.session_service.create_session(
-                app_name=app_name,
-                user_id=user_id, 
-                session_id=session_id
-            )
-            
-            # Create runner
-            runner = Runner(
-                agent=agent,
-                app_name=app_name,
-                session_service=self.session_service
-            )
-            
-            # Format input as message
-            user_message = self._format_agent_input(agent_name, input_data)
-            message = types.Content(
-                role='user',
-                parts=[types.Part(text=user_message)]
-            )
-            
-            # Collect all events for proper processing
-            events = []
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session_id, 
-                new_message=message
-            ):
-                events.append(event)
-            
-            # Use enhanced response handler to extract complete response
-            response_data = self.response_handler.extract_complete_response(events)
-            
-            # Log tool usage if present
-            if response_data["function_calls"]:
-                print(f"   🔧 {agent_name} used {len(response_data['function_calls'])} tools")
-                for call in response_data["function_calls"]:
-                    print(f"      - {call['name']}")
-            
-            if response_data["errors"]:
-                print(f"   ⚠️  {agent_name} reported {len(response_data['errors'])} errors")
-            
-            print(f"   📝 {agent_name} response: {len(response_data['final_text'])} chars text")
-            
-            return response_data
-            
-        except Exception as e:
-            error_msg = f"Error running {agent_name} agent: {str(e)}"
-            print(f"❌ {error_msg}")
-            return {
-                "final_text": error_msg,
-                "text_parts": [error_msg],
-                "function_calls": [],
-                "function_responses": [],
-                "tool_results": {},
-                "errors": [error_msg]
-            }
-            
+      
     # Enhanced processing methods remain the same...
     async def _process_contradictions_with_model_integration(self, raw_contradictions: List[Dict], 
                                                            context: Dict, hypothesis: str) -> List[Dict]:
