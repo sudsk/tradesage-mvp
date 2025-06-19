@@ -1,4 +1,4 @@
-# app/adk/tools.py - Corrected for ADK v1.0.0
+# app/adk/tools.py - Fixed Tools (No Default Parameters)
 from typing import Dict, Any, List
 import json
 from app.services.market_data_service import get_market_data
@@ -20,7 +20,7 @@ def market_data_search(instrument: str) -> Dict[str, Any]:
             "instrument": instrument
         }
 
-def news_search(query: str, days: int = 7) -> Dict[str, Any]:
+def news_search(query: str, days: int) -> Dict[str, Any]:  # REMOVED DEFAULT VALUE
     """Search for financial news."""
     try:
         result = news_data_tool(query, days, "tradesage-mvp")
@@ -58,5 +58,3 @@ def database_save(data_type: str, hypothesis_id: int, data: Dict[str, Any]) -> D
         return {"status": "success", "message": f"Saved {data_type} to database"}
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-# No need for Tool wrapper classes - functions are automatically converted
