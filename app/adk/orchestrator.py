@@ -1,4 +1,5 @@
-# app/adk/orchestrator.py - Final Version with Complete Model Integration
+
+# app/adk/orchestrator.py - Updated with enhanced tool response handling
 from typing import Dict, Any, List
 import json
 import asyncio
@@ -14,19 +15,21 @@ from app.adk.agents.research_agent import create_research_agent
 from app.adk.agents.contradiction_agent import create_contradiction_agent  # Enhanced version
 from app.adk.agents.synthesis_agent import create_synthesis_agent  # Enhanced version
 from app.adk.agents.alert_agent import create_alert_agent
+from app.adk.response_handler import ADKResponseHandler
 from app.config.adk_config import ADK_CONFIG
 
 class TradeSageOrchestrator:
-    """Enhanced ADK-based orchestrator with complete model integration."""
-    
+    """Enhanced ADK-based orchestrator with proper tool response handling."""
+
     def __init__(self):
         self.agents = self._initialize_agents()
         self.session_service = InMemorySessionService()
+        self.response_handler = ADKResponseHandler()
         
         # Initialize processors for enhanced logic with proper model integration
         self._initialize_enhanced_processors()
         
-        print("✅ TradeSage ADK Orchestrator initialized with complete model integration")
+        print("✅ TradeSage ADK Orchestrator initialized with enhanced tool handling")
         
     def _initialize_agents(self) -> Dict[str, Agent]:
         """Initialize all agents with enhanced versions."""
@@ -89,12 +92,12 @@ class TradeSageOrchestrator:
         try:
             # Step 1: Process Hypothesis
             print("🧠 Processing hypothesis...")
-            hypothesis_result = await self._run_agent("hypothesis", {
+            hypothesis_result = await self._run_agent_with_tool_handling("hypothesis", {
                 "hypothesis": hypothesis_text,
                 "mode": input_data.get("mode", "analyze")
             })
             
-            processed_hypothesis = self._extract_response(hypothesis_result)
+            processed_hypothesis = self._extract_response(hypothesis_result["final_text"])
             if not processed_hypothesis:
                 processed_hypothesis = hypothesis_text  # Fallback
             
@@ -102,34 +105,48 @@ class TradeSageOrchestrator:
             
             # Step 2: Analyze Context  
             print("🔍 Analyzing context...")
-            context_result = await self._run_agent("context", {
+            context_result = await self._run_agent_with_tool_handling("context", {
                 "hypothesis": processed_hypothesis
             })
             
-            context = self._parse_json_response(context_result)
+            context = self._parse_json_response(context_result["final_text"])
             asset_info = context.get("asset_info", {})
             print(f"   ✅ Asset identified: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('primary_symbol', 'N/A')})")
             
-            # Step 3: Conduct Research
+            # Step 3: Conduct Research (handles tools properly)
             print("📊 Conducting research...")
-            research_result = await self._run_agent("research", {
+            research_result = await self._run_agent_with_tool_handling("research", {
                 "hypothesis": processed_hypothesis,
                 "context": context
             })
             
-            research_data = self._parse_research_response(research_result)
-            print(f"   ✅ Research completed: {len(research_data.get('summary', ''))} chars")
+            # Enhanced research response handling
+            if self.response_handler.has_tool_usage(research_result):
+                research_summary = self.response_handler.format_research_response(research_result)
+                tool_summary = self.response_handler.get_tool_summary(research_result)
+                print(f"   ✅ Research completed with {tool_summary['tools_called']} tool calls")
+                print(f"   📊 Tools used: {', '.join(tool_summary['tool_names'])}")
+            else:
+                research_summary = research_result["final_text"]
+                print(f"   ✅ Research completed: {len(research_summary)} chars")
+            
+            research_data = {
+                "summary": research_summary,
+                "tool_results": research_result.get("tool_results", {}),
+                "method": "enhanced_adk_research_with_tools",
+                "tools_used": research_result.get("function_calls", [])
+            }
             
             # Step 4: Identify Contradictions with Enhanced Processing
             print("⚠️  Identifying contradictions with enhanced model integration...")
-            contradiction_result = await self._run_agent("contradiction", {
+            contradiction_result = await self._run_agent_with_tool_handling("contradiction", {
                 "hypothesis": processed_hypothesis,
                 "context": context,
                 "research_data": research_data
             })
             
             # Use enhanced contradiction processing with model integration
-            raw_contradictions = self._parse_contradictions_raw(contradiction_result)
+            raw_contradictions = self._parse_contradictions_raw(contradiction_result["final_text"])
             contradictions = await self._process_contradictions_with_model_integration(
                 raw_contradictions, context, processed_hypothesis
             )
@@ -137,7 +154,7 @@ class TradeSageOrchestrator:
             
             # Step 5: Synthesize Analysis with Enhanced Confirmations
             print("🔬 Synthesizing analysis with enhanced model integration...")
-            synthesis_result = await self._run_agent("synthesis", {
+            synthesis_result = await self._run_agent_with_tool_handling("synthesis", {
                 "hypothesis": processed_hypothesis,
                 "context": context,
                 "research_data": research_data,
@@ -146,7 +163,7 @@ class TradeSageOrchestrator:
             
             # Use enhanced confirmation generation with model integration
             synthesis_data = await self._process_synthesis_with_model_integration(
-                synthesis_result, context, processed_hypothesis, contradictions
+                synthesis_result["final_text"], context, processed_hypothesis, contradictions
             )
             confirmations = synthesis_data.get("confirmations", [])
             confidence_score = synthesis_data.get("confidence_score", 0.5)
@@ -154,7 +171,7 @@ class TradeSageOrchestrator:
             
             # Step 6: Generate Alerts
             print("🚨 Generating alerts...")
-            alert_result = await self._run_agent("alert", {
+            alert_result = await self._run_agent_with_tool_handling("alert", {
                 "hypothesis": processed_hypothesis,
                 "context": context,
                 "synthesis": synthesis_data,
@@ -163,7 +180,7 @@ class TradeSageOrchestrator:
                 "confidence_score": confidence_score
             })
             
-            alerts_data = self._parse_alerts_response(alert_result)
+            alerts_data = self._parse_alerts_response(alert_result["final_text"])
             alerts = alerts_data.get("alerts", [])
             print(f"   ✅ Generated {len(alerts)} alerts")
             
@@ -179,18 +196,19 @@ class TradeSageOrchestrator:
                 "alerts": alerts,
                 "recommendations": alerts_data.get("recommendations", ""),
                 "confidence_score": confidence_score,
-                "method": "enhanced_adk_with_model_integration",
+                "method": "enhanced_adk_with_tool_handling",
                 "processing_stats": {
                     "total_agents": len(self.agents),
                     "contradictions_found": len(contradictions),
                     "confirmations_found": len(confirmations),
                     "alerts_generated": len(alerts),
                     "enhanced_processing": True,
-                    "model_integration": True
+                    "tool_integration": True,
+                    "research_tools_used": len(research_data.get("tools_used", []))
                 }
             }
             
-            print(f"✅ Enhanced ADK workflow with model integration completed successfully")
+            print(f"✅ Enhanced ADK workflow with tool handling completed successfully")
             return result
             
         except Exception as e:
@@ -200,14 +218,86 @@ class TradeSageOrchestrator:
             return {
                 "status": "error",
                 "error": str(e),
-                "method": "enhanced_adk_with_model_integration",
+                "method": "enhanced_adk_with_tool_handling",
                 "partial_data": {
                     "hypothesis": hypothesis_text,
                     "processed_hypothesis": locals().get("processed_hypothesis", ""),
                     "context": locals().get("context", {}),
                 }
             }
-    
+
+    async def _run_agent_with_tool_handling(self, agent_name: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Run agent with proper handling of both text and function call responses."""
+        if agent_name not in self.agents:
+            raise ValueError(f"Agent '{agent_name}' not found")
+        
+        try:
+            agent = self.agents[agent_name]
+            
+            # Create session for this agent
+            app_name = f"tradesage_{agent_name}"
+            user_id = "tradesage_user"
+            session_id = f"session_{agent_name}_{id(input_data)}"
+            
+            # Create session
+            session = await self.session_service.create_session(
+                app_name=app_name,
+                user_id=user_id, 
+                session_id=session_id
+            )
+            
+            # Create runner
+            runner = Runner(
+                agent=agent,
+                app_name=app_name,
+                session_service=self.session_service
+            )
+            
+            # Format input as message
+            user_message = self._format_agent_input(agent_name, input_data)
+            message = types.Content(
+                role='user',
+                parts=[types.Part(text=user_message)]
+            )
+            
+            # Collect all events for proper processing
+            events = []
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=session_id, 
+                new_message=message
+            ):
+                events.append(event)
+            
+            # Use enhanced response handler to extract complete response
+            response_data = self.response_handler.extract_complete_response(events)
+            
+            # Log tool usage if present
+            if response_data["function_calls"]:
+                print(f"   🔧 {agent_name} used {len(response_data['function_calls'])} tools")
+                for call in response_data["function_calls"]:
+                    print(f"      - {call['name']}")
+            
+            if response_data["errors"]:
+                print(f"   ⚠️  {agent_name} reported {len(response_data['errors'])} errors")
+            
+            print(f"   📝 {agent_name} response: {len(response_data['final_text'])} chars text")
+            
+            return response_data
+            
+        except Exception as e:
+            error_msg = f"Error running {agent_name} agent: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {
+                "final_text": error_msg,
+                "text_parts": [error_msg],
+                "function_calls": [],
+                "function_responses": [],
+                "tool_results": {},
+                "errors": [error_msg]
+            }
+            
+    # Enhanced processing methods remain the same...
     async def _process_contradictions_with_model_integration(self, raw_contradictions: List[Dict], 
                                                            context: Dict, hypothesis: str) -> List[Dict]:
         """Process contradictions using enhanced logic with actual model integration."""
@@ -268,7 +358,7 @@ class TradeSageOrchestrator:
                         "confirmations": len(confirmations),
                         "contradictions": len(contradictions)
                     },
-                    "processing_method": "model_integrated"
+                    "processing_method": "model_integrated_with_tools"
                 }
             }
             
@@ -282,6 +372,7 @@ class TradeSageOrchestrator:
                 "assessment": {"confidence": 0.5, "summary": "Fallback synthesis processing used"}
             }
     
+    # All other helper methods remain the same from the previous version...
     def _get_recommendation_from_confidence(self, confidence_score: float) -> str:
         """Get investment recommendation based on confidence score."""
         if confidence_score >= 0.7:
