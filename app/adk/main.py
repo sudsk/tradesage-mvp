@@ -1,4 +1,4 @@
-# app/adk/main.py  
+# app/adk/main.py - Updated with minor fixes
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -70,48 +70,86 @@ async def process_hypothesis_adk(request_data: dict, db: Session = Depends(get_d
         
         db_hypothesis = HypothesisCRUD.create_hypothesis(db, hypothesis_data)
         
-        # Save contradictions
+        # Save contradictions with validation
+        cleaned_contradictions = []
         for contradiction in result.get("contradictions", []):
-            ContradictionCRUD.create_contradiction(db, {
-                "hypothesis_id": db_hypothesis.id,
-                **contradiction
-            })
+            if isinstance(contradiction, dict):
+                try:
+                    # Ensure database field limits
+                    contradiction_data = {
+                        "hypothesis_id": db_hypothesis.id,
+                        "quote": contradiction.get("quote", "")[:500],
+                        "reason": contradiction.get("reason", "Market analysis challenges this thesis")[:500],
+                        "source": contradiction.get("source", "Agent Analysis")[:500],
+                        "strength": contradiction.get("strength", "Medium")
+                    }
+                    ContradictionCRUD.create_contradiction(db, contradiction_data)
+                    cleaned_contradictions.append(contradiction.get("quote", ""))
+                except Exception as e:
+                    print(f"⚠️  Failed to save contradiction: {str(e)}")
+                    continue
         
-        # Save confirmations
+        # Save confirmations with validation
+        cleaned_confirmations = []
         for confirmation in result.get("confirmations", []):
-            ConfirmationCRUD.create_confirmation(db, {
-                "hypothesis_id": db_hypothesis.id,
-                **confirmation
-            })
+            if isinstance(confirmation, dict):
+                try:
+                    # Ensure database field limits
+                    confirmation_data = {
+                        "hypothesis_id": db_hypothesis.id,
+                        "quote": confirmation.get("quote", "")[:500],
+                        "reason": confirmation.get("reason", "Market analysis supports this thesis")[:500],
+                        "source": confirmation.get("source", "Agent Analysis")[:500],
+                        "strength": confirmation.get("strength", "Strong")
+                    }
+                    ConfirmationCRUD.create_confirmation(db, confirmation_data)
+                    cleaned_confirmations.append(confirmation.get("quote", ""))
+                except Exception as e:
+                    print(f"⚠️  Failed to save confirmation: {str(e)}")
+                    continue
         
-        # Save alerts
+        # Save alerts with validation
         for alert in result.get("alerts", []):
-            AlertCRUD.create_alert(db, {
-                "hypothesis_id": db_hypothesis.id,
-                "alert_type": alert.get("type", "recommendation"),
-                "message": alert.get("message", ""),
-                "priority": alert.get("priority", "medium")
-            })
+            if isinstance(alert, dict):
+                try:
+                    alert_data = {
+                        "hypothesis_id": db_hypothesis.id,
+                        "alert_type": alert.get("type", "recommendation")[:50],  # Enforce limit
+                        "message": alert.get("message", "")[:1000],  # Enforce limit (adjust based on your schema)
+                        "priority": alert.get("priority", "medium")
+                    }
+                    # Validate priority
+                    if alert_data["priority"] not in ["high", "medium", "low"]:
+                        alert_data["priority"] = "medium"
+                    
+                    AlertCRUD.create_alert(db, alert_data)
+                except Exception as e:
+                    print(f"⚠️  Failed to save alert: {str(e)}")
+                    continue
         
-        # Return response
+        # Return response with both contradictions AND confirmations
         return {
             "status": "success",
-            "method": "adk_v1.0.0",
+            "method": "enhanced_adk_v1.0.0",
             "hypothesis_id": db_hypothesis.id,
             "processed_hypothesis": clean_title,
             "confidence_score": result.get("confidence_score", 0.5),
             "research": result.get("research_data", {}),
-            "contradictions": [c.get("quote", str(c)) for c in result.get("contradictions", [])],
+            "contradictions": cleaned_contradictions,  # ✅ Now includes clean quotes
+            "confirmations": cleaned_confirmations,    # ✅ Added missing confirmations
             "synthesis": result.get("synthesis", ""),
             "alerts": result.get("alerts", []),
             "recommendations": result.get("recommendations", ""),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "processing_stats": result.get("processing_stats", {})  # ✅ Added processing stats
         }
         
     except HTTPException:
         raise
     except Exception as e:
         print(f"❌ ADK processing error: {str(e)}")
+        import traceback
+        traceback.print_exc()  # ✅ Better error debugging
         raise HTTPException(status_code=500, detail=f"ADK processing failed: {str(e)}")
 
 @app.get("/dashboard")
