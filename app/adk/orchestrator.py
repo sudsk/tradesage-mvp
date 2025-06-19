@@ -180,7 +180,8 @@ class TradeSageOrchestrator:
             user_id = "tradesage_user"
             session_id = f"session_{agent_name}_{id(input_data)}"  # Unique session per call
             
-            session = self.session_service.create_session(
+            # Await the async session creation
+            session = await self.session_service.create_session(
                 app_name=app_name,
                 user_id=user_id, 
                 session_id=session_id
