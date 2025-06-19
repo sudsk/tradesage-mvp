@@ -1,4 +1,4 @@
-# app/adk/orchestrator.py - Updated with enhanced tool response handling
+# app/adk/orchestrator.py - Fixed tool response handling to eliminate warnings
 from typing import Dict, Any, List
 import json
 import asyncio
@@ -11,87 +11,56 @@ from google.genai import types
 from app.adk.agents.hypothesis_agent import create_hypothesis_agent
 from app.adk.agents.context_agent import create_context_agent
 from app.adk.agents.research_agent import create_research_agent
-from app.adk.agents.contradiction_agent import create_contradiction_agent  # Enhanced version
-from app.adk.agents.synthesis_agent import create_synthesis_agent  # Enhanced version
+from app.adk.agents.contradiction_agent import create_contradiction_agent
+from app.adk.agents.synthesis_agent import create_synthesis_agent
 from app.adk.agents.alert_agent import create_alert_agent
 from app.adk.response_handler import ADKResponseHandler
 from app.config.adk_config import ADK_CONFIG
 
 class TradeSageOrchestrator:
-    """Enhanced ADK-based orchestrator with proper tool response handling."""
+    """Enhanced ADK-based orchestrator with FIXED tool response handling."""
 
     def __init__(self):
         self.agents = self._initialize_agents()
         self.session_service = InMemorySessionService()
         self.response_handler = ADKResponseHandler()
         
-        # Initialize processors for enhanced logic with proper model integration
-        self._initialize_enhanced_processors()
-        
-        print("✅ TradeSage ADK Orchestrator initialized with enhanced tool handling")
+        print("✅ TradeSage ADK Orchestrator initialized with fixed tool handling")
         
     def _initialize_agents(self) -> Dict[str, Agent]:
-        """Initialize all agents with enhanced versions."""
+        """Initialize all agents."""
         try:
             agents = {
                 "hypothesis": create_hypothesis_agent(),
                 "context": create_context_agent(),
                 "research": create_research_agent(),
-                "contradiction": create_contradiction_agent(),  # Enhanced
-                "synthesis": create_synthesis_agent(),  # Enhanced
+                "contradiction": create_contradiction_agent(),
+                "synthesis": create_synthesis_agent(),
                 "alert": create_alert_agent(),
             }
-            print(f"✅ Initialized {len(agents)} agents with enhanced logic")
+            print(f"✅ Initialized {len(agents)} agents")
             return agents
         except Exception as e:
             print(f"❌ Error initializing agents: {str(e)}")
             raise
     
-    def _initialize_enhanced_processors(self):
-        """Initialize the enhanced processors with actual agent models."""
-        try:
-            # Import the processor classes
-            from app.adk.agents.contradiction_agent import IntelligentContradictionProcessor
-            from app.adk.agents.synthesis_agent import AssetSpecificConfirmationGenerator, ConfidenceCalculator
-            
-            # Initialize processors with actual agents and session service
-            self.contradiction_processor = IntelligentContradictionProcessor(
-                agent=self.agents["contradiction"],
-                session_service=self.session_service
-            )
-            
-            self.confirmation_generator = AssetSpecificConfirmationGenerator(
-                agent=self.agents["synthesis"], 
-                session_service=self.session_service
-            )
-            
-            self.confidence_calculator = ConfidenceCalculator()
-            
-            print("✅ Enhanced processors initialized with model integration")
-        except Exception as e:
-            print(f"⚠️  Enhanced processors initialization failed: {str(e)}")
-            print("   Falling back to basic processing")
-            self.contradiction_processor = None
-            self.confirmation_generator = None
-            self.confidence_calculator = None
-    
     async def process_hypothesis(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a trading hypothesis through the enhanced ADK agent workflow."""
+        """Process a trading hypothesis through the ADK agent workflow."""
         
         hypothesis_text = input_data.get("hypothesis", "").strip()
         if not hypothesis_text:
             return {
                 "status": "error",
                 "error": "No hypothesis provided",
-                "method": "enhanced_adk_orchestration"
+                "method": "adk_orchestration"
             }
         
-        print(f"🚀 Starting enhanced ADK workflow for: {hypothesis_text[:100]}...")
+        print(f"🚀 Starting ADK workflow for: {hypothesis_text[:100]}...")
         
         try:
             # Step 1: Process Hypothesis
             print("🧠 Processing hypothesis...")
-            hypothesis_result = await self._run_agent_with_tool_handling("hypothesis", {
+            hypothesis_result = await self._run_agent_with_fixed_tool_handling("hypothesis", {
                 "hypothesis": hypothesis_text,
                 "mode": input_data.get("mode", "analyze")
             })
@@ -104,7 +73,7 @@ class TradeSageOrchestrator:
             
             # Step 2: Analyze Context  
             print("🔍 Analyzing context...")
-            context_result = await self._run_agent_with_tool_handling("context", {
+            context_result = await self._run_agent_with_fixed_tool_handling("context", {
                 "hypothesis": processed_hypothesis
             })
             
@@ -112,65 +81,58 @@ class TradeSageOrchestrator:
             asset_info = context.get("asset_info", {})
             print(f"   ✅ Asset identified: {asset_info.get('asset_name', 'Unknown')} ({asset_info.get('primary_symbol', 'N/A')})")
             
-            # Step 3: Conduct Research (handles tools properly)
+            # Step 3: Conduct Research (FIXED - handles tools properly)
             print("📊 Conducting research...")
-            research_result = await self._run_agent_with_tool_handling("research", {
+            research_result = await self._run_agent_with_fixed_tool_handling("research", {
                 "hypothesis": processed_hypothesis,
                 "context": context
             })
             
-            # Enhanced research response handling
-            if self.response_handler.has_tool_usage(research_result):
-                research_summary = self.response_handler.format_research_response(research_result)
-                tool_summary = self.response_handler.get_tool_summary(research_result)
+            # FIXED: Properly handle research response with tools
+            research_summary = self._extract_research_summary_from_tools(research_result)
+            tool_summary = self.response_handler.get_tool_summary(research_result)
+            
+            if tool_summary['tools_called'] > 0:
                 print(f"   ✅ Research completed with {tool_summary['tools_called']} tool calls")
-                print(f"   📊 Tools used: {', '.join(tool_summary['tool_names'])}")
+                print(f"   🔧 Tools used: {', '.join(tool_summary['tool_names'])}")
             else:
-                research_summary = research_result["final_text"]
                 print(f"   ✅ Research completed: {len(research_summary)} chars")
             
             research_data = {
                 "summary": research_summary,
                 "tool_results": research_result.get("tool_results", {}),
-                "method": "enhanced_adk_research_with_tools",
+                "method": "adk_research_with_tools",
                 "tools_used": research_result.get("function_calls", [])
             }
             
-            # Step 4: Identify Contradictions with Enhanced Processing
-            print("⚠️  Identifying contradictions with enhanced model integration...")
-            contradiction_result = await self._run_agent_with_tool_handling("contradiction", {
+            # Step 4: Identify Contradictions
+            print("⚠️  Identifying contradictions...")
+            contradiction_result = await self._run_agent_with_fixed_tool_handling("contradiction", {
                 "hypothesis": processed_hypothesis,
                 "context": context,
                 "research_data": research_data
             })
             
-            # Use enhanced contradiction processing with model integration
-            raw_contradictions = self._parse_contradictions_raw(contradiction_result["final_text"])
-            contradictions = await self._process_contradictions_with_model_integration(
-                raw_contradictions, context, processed_hypothesis
-            )
-            print(f"   ✅ Found {len(contradictions)} enhanced contradictions")
+            contradictions = self._parse_contradictions_response(contradiction_result["final_text"])
+            print(f"   ✅ Found {len(contradictions)} contradictions")
             
-            # Step 5: Synthesize Analysis with Enhanced Confirmations
-            print("🔬 Synthesizing analysis with enhanced model integration...")
-            synthesis_result = await self._run_agent_with_tool_handling("synthesis", {
+            # Step 5: Synthesize Analysis
+            print("🔬 Synthesizing analysis...")
+            synthesis_result = await self._run_agent_with_fixed_tool_handling("synthesis", {
                 "hypothesis": processed_hypothesis,
                 "context": context,
                 "research_data": research_data,
                 "contradictions": contradictions
             })
             
-            # Use enhanced confirmation generation with model integration
-            synthesis_data = await self._process_synthesis_with_model_integration(
-                synthesis_result["final_text"], context, processed_hypothesis, contradictions
-            )
+            synthesis_data = self._parse_synthesis_response(synthesis_result["final_text"], contradictions)
             confirmations = synthesis_data.get("confirmations", [])
             confidence_score = synthesis_data.get("confidence_score", 0.5)
-            print(f"   ✅ Enhanced synthesis complete - Confidence: {confidence_score:.2f}")
+            print(f"   ✅ Synthesis complete - Confidence: {confidence_score:.2f}")
             
             # Step 6: Generate Alerts
             print("🚨 Generating alerts...")
-            alert_result = await self._run_agent_with_tool_handling("alert", {
+            alert_result = await self._run_agent_with_fixed_tool_handling("alert", {
                 "hypothesis": processed_hypothesis,
                 "context": context,
                 "synthesis": synthesis_data,
@@ -195,29 +157,27 @@ class TradeSageOrchestrator:
                 "alerts": alerts,
                 "recommendations": alerts_data.get("recommendations", ""),
                 "confidence_score": confidence_score,
-                "method": "enhanced_adk_with_tool_handling",
+                "method": "adk_with_fixed_tool_handling",
                 "processing_stats": {
                     "total_agents": len(self.agents),
                     "contradictions_found": len(contradictions),
                     "confirmations_found": len(confirmations),
                     "alerts_generated": len(alerts),
-                    "enhanced_processing": True,
-                    "tool_integration": True,
                     "research_tools_used": len(research_data.get("tools_used", []))
                 }
             }
             
-            print(f"✅ Enhanced ADK workflow with tool handling completed successfully")
+            print(f"✅ ADK workflow completed successfully")
             return result
             
         except Exception as e:
-            print(f"❌ Enhanced orchestration error: {str(e)}")
+            print(f"❌ Orchestration error: {str(e)}")
             import traceback
             traceback.print_exc()
             return {
                 "status": "error",
                 "error": str(e),
-                "method": "enhanced_adk_with_tool_handling",
+                "method": "adk_with_fixed_tool_handling",
                 "partial_data": {
                     "hypothesis": hypothesis_text,
                     "processed_hypothesis": locals().get("processed_hypothesis", ""),
@@ -225,8 +185,8 @@ class TradeSageOrchestrator:
                 }
             }
 
-    async def _run_agent_with_tool_handling(self, agent_name: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Run agent with proper handling of both text and function call responses."""
+    async def _run_agent_with_fixed_tool_handling(self, agent_name: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """FIXED: Run agent with proper handling of both text and function call responses."""
         if agent_name not in self.agents:
             raise ValueError(f"Agent '{agent_name}' not found")
         
@@ -259,19 +219,70 @@ class TradeSageOrchestrator:
                 parts=[types.Part(text=user_message)]
             )
             
-            # Collect all events for proper processing
-            events = []
+            # FIXED: Collect all events properly to handle tool usage
+            all_events = []
+            text_responses = []
+            function_calls = []
+            function_responses = []
+            tool_results = {}
+            errors = []
+            
             async for event in runner.run_async(
                 user_id=user_id,
                 session_id=session_id, 
                 new_message=message
             ):
-                events.append(event)
+                all_events.append(event)
+                
+                # Handle different event types
+                if hasattr(event, 'content') and event.content:
+                    if hasattr(event.content, 'parts') and event.content.parts:
+                        for part in event.content.parts:
+                            # Handle text parts
+                            if hasattr(part, 'text') and part.text:
+                                text_responses.append(part.text)
+                            
+                            # Handle function calls
+                            elif hasattr(part, 'function_call') and part.function_call:
+                                function_call = {
+                                    "name": part.function_call.name,
+                                    "args": dict(part.function_call.args) if part.function_call.args else {}
+                                }
+                                function_calls.append(function_call)
+                            
+                            # Handle function responses
+                            elif hasattr(part, 'function_response') and part.function_response:
+                                function_response = {
+                                    "name": part.function_response.name,
+                                    "response": part.function_response.response
+                                }
+                                function_responses.append(function_response)
+                                
+                                # Store tool results for easy access
+                                tool_results[part.function_response.name] = part.function_response.response
+                
+                # Handle errors
+                if hasattr(event, 'error') and event.error:
+                    errors.append(str(event.error))
             
-            # Use enhanced response handler to extract complete response
-            response_data = self.response_handler.extract_complete_response(events)
+            # FIXED: Combine all response parts properly
+            final_text = " ".join(text_responses) if text_responses else ""
             
-            # Log tool usage if present
+            # If we have function calls but no text response, create summary
+            if function_calls and not final_text:
+                final_text = f"Completed {len(function_calls)} tool calls: {', '.join([fc['name'] for fc in function_calls])}"
+            
+            response_data = {
+                "final_text": final_text,
+                "text_parts": text_responses,
+                "function_calls": function_calls,
+                "function_responses": function_responses,
+                "tool_results": tool_results,
+                "errors": errors,
+                "has_tools": len(function_calls) > 0
+            }
+            
+            # Log tool usage without warnings
             if response_data["function_calls"]:
                 print(f"   🔧 {agent_name} used {len(response_data['function_calls'])} tools")
                 for call in response_data["function_calls"]:
@@ -279,8 +290,6 @@ class TradeSageOrchestrator:
             
             if response_data["errors"]:
                 print(f"   ⚠️  {agent_name} reported {len(response_data['errors'])} errors")
-            
-            print(f"   📝 {agent_name} response: {len(response_data['final_text'])} chars text")
             
             return response_data
             
@@ -293,118 +302,73 @@ class TradeSageOrchestrator:
                 "function_calls": [],
                 "function_responses": [],
                 "tool_results": {},
-                "errors": [error_msg]
+                "errors": [error_msg],
+                "has_tools": False
             }
-            
-    # Enhanced processing methods remain the same...
-    async def _process_contradictions_with_model_integration(self, raw_contradictions: List[Dict], 
-                                                           context: Dict, hypothesis: str) -> List[Dict]:
-        """Process contradictions using enhanced logic with actual model integration."""
+
+    def _extract_research_summary_from_tools(self, research_result: Dict) -> str:
+        """FIXED: Extract research summary properly handling tool results"""
         
-        if not self.contradiction_processor:
-            print("   ⚠️  Enhanced processor not available, using basic processing")
-            return self._parse_contradictions_basic(raw_contradictions) if raw_contradictions else []
+        # If we have tool results, format them properly
+        if research_result.get("tool_results"):
+            formatted_sections = []
+            
+            # Add agent's text analysis if available
+            if research_result.get("final_text"):
+                formatted_sections.append("## Agent Analysis")
+                formatted_sections.append(research_result["final_text"])
+            
+            # Add tool results
+            formatted_sections.append("\n## Tool Results")
+            
+            for tool_name, result in research_result["tool_results"].items():
+                formatted_sections.append(f"\n### {tool_name}")
+                
+                try:
+                    # Try to parse as JSON if it's structured data
+                    if isinstance(result, str) and result.startswith('{'):
+                        parsed_result = json.loads(result)
+                        status = parsed_result.get('status', 'unknown')
+                        formatted_sections.append(f"Status: {status}")
+                        
+                        # Format market data
+                        if 'data' in parsed_result and 'info' in parsed_result.get('data', {}):
+                            info = parsed_result['data']['info']
+                            formatted_sections.append(f"Current Price: ${info.get('currentPrice', 'N/A')}")
+                            formatted_sections.append(f"Daily Change: {info.get('dayChangePercent', 0):+.2f}%")
+                            formatted_sections.append(f"Volume: {info.get('volume', 'N/A'):,}")
+                        
+                        # Format news data
+                        elif 'articles' in parsed_result:
+                            articles = parsed_result['articles'][:3]  # Top 3 articles
+                            formatted_sections.append(f"Found {len(parsed_result['articles'])} articles")
+                            for i, article in enumerate(articles, 1):
+                                formatted_sections.append(f"{i}. {article.get('title', 'No title')}")
+                    
+                    else:
+                        # Handle non-JSON results
+                        result_str = str(result)
+                        if len(result_str) > 200:
+                            formatted_sections.append(result_str[:200] + "...")
+                        else:
+                            formatted_sections.append(result_str)
+                            
+                except Exception as e:
+                    formatted_sections.append(f"Tool result (parsing failed): {str(result)[:100]}...")
+            
+            return "\n".join(formatted_sections)
         
-        try:
-            print("   🤖 Using model-integrated contradiction processing...")
-            enhanced_contradictions = self.contradiction_processor.process_contradictions(
-                raw_contradictions, context, hypothesis
-            )
-            print(f"   🔧 Model integration: {len(raw_contradictions)} → {len(enhanced_contradictions)} contradictions")
-            return enhanced_contradictions
-        except Exception as e:
-            print(f"   ⚠️  Model-integrated contradiction processing failed: {str(e)}")
-            # Fallback to basic processing
-            return self._parse_contradictions_basic(raw_contradictions) if raw_contradictions else []
-    
-    async def _process_synthesis_with_model_integration(self, synthesis_result: str, context: Dict, 
-                                                       hypothesis: str, contradictions: List[Dict]) -> Dict[str, Any]:
-        """Process synthesis using enhanced logic with actual model integration."""
-        
-        if not self.confirmation_generator or not self.confidence_calculator:
-            print("   ⚠️  Enhanced processors not available, using basic processing")
-            return {
-                "analysis": synthesis_result,
-                "confirmations": self._get_fallback_confirmations(context),
-                "confidence_score": 0.5,
-                "assessment": {"confidence": 0.5, "summary": "Basic synthesis processing used"}
-            }
-        
-        try:
-            print("   🤖 Using model-integrated confirmation generation...")
-            
-            # Generate high-quality confirmations using model integration
-            confirmations = self.confirmation_generator.generate_high_quality_confirmations(
-                context, hypothesis
-            )
-            
-            # Calculate realistic confidence score
-            confidence_score = self.confidence_calculator.calculate_realistic_confidence(
-                contradictions, confirmations, context
-            )
-            
-            print(f"   🔧 Model integration: {len(confirmations)} confirmations generated with {confidence_score:.2f} confidence")
-            
-            return {
-                "analysis": synthesis_result,
-                "confirmations": confirmations,
-                "confidence_score": confidence_score,
-                "assessment": {
-                    "confidence": confidence_score,
-                    "summary": f"Model-integrated analysis with {len(confirmations)} confirmations vs {len(contradictions)} contradictions",
-                    "recommendation": self._get_recommendation_from_confidence(confidence_score),
-                    "evidence_balance": {
-                        "confirmations": len(confirmations),
-                        "contradictions": len(contradictions)
-                    },
-                    "processing_method": "model_integrated_with_tools"
-                }
-            }
-            
-        except Exception as e:
-            print(f"   ⚠️  Model-integrated synthesis processing failed: {str(e)}")
-            # Fallback to basic processing
-            return {
-                "analysis": synthesis_result,
-                "confirmations": self._get_fallback_confirmations(context),
-                "confidence_score": 0.5,
-                "assessment": {"confidence": 0.5, "summary": "Fallback synthesis processing used"}
-            }
-    
-    # All other helper methods remain the same from the previous version...
-    def _get_recommendation_from_confidence(self, confidence_score: float) -> str:
-        """Get investment recommendation based on confidence score."""
-        if confidence_score >= 0.7:
-            return "Consider Position"
-        elif confidence_score >= 0.5:
-            return "Monitor Closely"
-        elif confidence_score >= 0.3:
-            return "Exercise Caution"
-        else:
-            return "Avoid or Wait"
-    
-    def _get_fallback_confirmations(self, context: Dict) -> List[Dict]:
-        """Get fallback confirmations when enhanced processing fails."""
-        asset_name = context.get("asset_info", {}).get("asset_name", "the asset") if context else "the asset"
-        
-        return [
-            {
-                "quote": f"Market fundamentals and technical indicators support {asset_name} investment potential.",
-                "reason": "Current market conditions and analysis suggest favorable outlook for price appreciation.",
-                "source": "Market Analysis",
-                "strength": "Medium"
-            }
-        ]
-    
-    def _parse_contradictions_raw(self, contradiction_result: str) -> List[Dict]:
-        """Parse raw contradictions from agent response."""
+        # Fallback to final text if no tools
+        return research_result.get("final_text", "No research data available")
+
+    def _parse_contradictions_response(self, response_text: str) -> List[Dict]:
+        """Parse contradictions from agent response"""
         contradictions = []
         
         # Try to extract JSON if present
         try:
-            if '{' in contradiction_result and '}' in contradiction_result:
-                import re
-                json_matches = re.findall(r'\{[^}]+\}', contradiction_result)
+            if '{' in response_text and '}' in response_text:
+                json_matches = re.findall(r'\{[^}]+\}', response_text)
                 for match in json_matches:
                     try:
                         parsed = json.loads(match)
@@ -417,7 +381,7 @@ class TradeSageOrchestrator:
         
         # Fallback to text parsing
         if not contradictions:
-            lines = contradiction_result.split('\n')
+            lines = response_text.split('\n')
             for line in lines:
                 line = line.strip()
                 if len(line) > 30 and any(keyword in line.lower() for keyword in 
@@ -429,28 +393,100 @@ class TradeSageOrchestrator:
                         "strength": "Medium"
                     })
         
-        return contradictions
-    
-    def _parse_contradictions_basic(self, raw_contradictions: List[Dict]) -> List[Dict]:
-        """Basic contradiction parsing as fallback."""
-        if not raw_contradictions:
-            return []
+        return contradictions[:3]  # Limit to 3
+
+    def _parse_synthesis_response(self, response_text: str, contradictions: List[Dict]) -> Dict[str, Any]:
+        """Parse synthesis response and extract confirmations"""
         
-        processed = []
-        for contradiction in raw_contradictions:
-            if isinstance(contradiction, dict):
-                processed.append({
-                    "quote": contradiction.get("quote", "")[:400],
-                    "reason": contradiction.get("reason", "Market analysis identifies potential challenges")[:400],
-                    "source": contradiction.get("source", "Basic Analysis")[:40],
-                    "strength": contradiction.get("strength", "Medium")
+        # Try to extract confirmations from response
+        confirmations = []
+        
+        # Look for positive statements in synthesis
+        lines = response_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if len(line) > 30 and any(keyword in line.lower() for keyword in 
+                                    ['strong', 'growth', 'positive', 'advantage', 'leader']):
+                confirmations.append({
+                    "quote": line[:400],
+                    "reason": "Market analysis supports this positive factor",
+                    "source": "Synthesis",
+                    "strength": "Medium"
                 })
         
-        return processed[:3]  # Limit to 3
- 
-    # Include necessary helper methods...
+        # Default confirmations if none found
+        if not confirmations:
+            confirmations = [
+                {
+                    "quote": "Market fundamentals support the investment thesis with positive indicators.",
+                    "reason": "Analysis suggests favorable conditions for price appreciation potential.",
+                    "source": "Market Analysis",
+                    "strength": "Medium"
+                }
+            ]
+        
+        # Calculate basic confidence score
+        conf_count = len(confirmations)
+        contra_count = len(contradictions)
+        
+        if conf_count == 0 and contra_count == 0:
+            confidence = 0.5
+        else:
+            confidence = conf_count / (conf_count + contra_count + 1)  # +1 to avoid division issues
+            confidence = max(0.15, min(0.85, confidence))  # Bound between 15% and 85%
+        
+        return {
+            "analysis": response_text,
+            "confirmations": confirmations[:3],  # Limit to 3
+            "confidence_score": confidence
+        }
+
+    def _parse_alerts_response(self, response_text: str) -> Dict[str, Any]:
+        """Parse alerts response"""
+        alerts = []
+        
+        # Try to extract structured alerts
+        try:
+            json_matches = re.findall(r'\[.*?\]', response_text, re.DOTALL)
+            for json_match in json_matches:
+                try:
+                    parsed = json.loads(json_match)
+                    if isinstance(parsed, list):
+                        for item in parsed:
+                            if isinstance(item, dict) and 'message' in item:
+                                alerts.append({
+                                    "type": item.get("type", "recommendation"),
+                                    "message": str(item.get("message", ""))[:500],
+                                    "priority": item.get("priority", "medium")
+                                })
+                except:
+                    continue
+        except:
+            pass
+        
+        # Generate default alerts if none found
+        if not alerts:
+            alerts = [
+                {
+                    "type": "recommendation",
+                    "message": "Monitor key market indicators and price levels for optimal entry timing.",
+                    "priority": "medium"
+                },
+                {
+                    "type": "risk_management",
+                    "message": "Set appropriate stop-loss levels to manage downside risk exposure.",
+                    "priority": "medium"
+                }
+            ]
+        
+        return {
+            "alerts": alerts[:5],  # Limit to 5 alerts
+            "recommendations": response_text[:1000] + "..." if len(response_text) > 1000 else response_text
+        }
+
+    # Include all the helper methods from the original orchestrator...
     def _format_agent_input(self, agent_name: str, input_data: Dict[str, Any]) -> str:
-        """Format input data for agent with enhanced context."""
+        """Format input data for agent."""
         base_hypothesis = input_data.get('hypothesis', '')
         
         if agent_name == "hypothesis":
@@ -538,7 +574,7 @@ Provide specific, actionable alerts with clear priorities and investment recomme
         return str(input_data)
     
     def _extract_response(self, response: str) -> str:
-        """Extract clean response text with better handling."""
+        """Extract clean response text."""
         if not response:
             return ""
         
@@ -567,7 +603,7 @@ Provide specific, actionable alerts with clear priorities and investment recomme
         return cleaned
     
     def _parse_json_response(self, response: str) -> Dict[str, Any]:
-        """Parse JSON response from agent with enhanced error handling."""
+        """Parse JSON response from agent."""
         if not response:
             return self._get_fallback_context()
         
@@ -591,7 +627,6 @@ Provide specific, actionable alerts with clear priorities and investment recomme
                 
         except json.JSONDecodeError as e:
             print(f"⚠️  JSON parsing failed: {str(e)}")
-            print(f"   Raw response preview: {response[:200]}...")
         except Exception as e:
             print(f"⚠️  Unexpected parsing error: {str(e)}")
         
@@ -640,16 +675,10 @@ Provide specific, actionable alerts with clear priorities and investment recomme
                     }
                 break
         
-        # Look for direction indicators
-        if re.search(r'(?:bullish|bull|up|rise|increase|grow)', response, re.IGNORECASE):
-            context["hypothesis_details"]["direction"] = "bullish"
-        elif re.search(r'(?:bearish|bear|down|fall|decrease|decline)', response, re.IGNORECASE):
-            context["hypothesis_details"]["direction"] = "bearish"
-        
         return context
     
     def _get_fallback_context(self) -> Dict[str, Any]:
-        """Get enhanced fallback context with realistic defaults."""
+        """Get fallback context."""
         return {
             "asset_info": {
                 "primary_symbol": "SPY",
@@ -676,100 +705,11 @@ Provide specific, actionable alerts with clear priorities and investment recomme
                 "sensitivity_factors": ["interest rates", "market sentiment"]
             }
         }
-    
-    def _parse_research_response(self, response: str) -> Dict[str, Any]:
-        """Parse research response with enhanced structure."""
-        if not response:
-            return {"summary": "No research data available", "method": "enhanced_adk_research"}
-        
-        return {
-            "summary": response[:1000] + "..." if len(response) > 1000 else response,
-            "method": "enhanced_adk_research",
-            "timestamp": "2025-01-01T00:00:00Z",
-            "data_sources": {
-                "market_data": 1,
-                "news_articles": 1,
-                "analysis_quality": "enhanced"
-            },
-            "key_findings": self._extract_key_findings(response)
-        }
-    
-    def _extract_key_findings(self, response: str) -> List[str]:
-        """Extract key findings from research response."""
-        findings = []
-        
-        # Look for bullet points or numbered items
-        lines = response.split('\n')
-        for line in lines:
-            line = line.strip()
-            if (line.startswith(('•', '-', '*')) or 
-                re.match(r'^\d+\.', line)) and len(line) > 20:
-                clean_line = re.sub(r'^[•\-\*\d\.]+\s*', '', line)
-                findings.append(clean_line[:200])
-                
-                if len(findings) >= 5:
-                    break
-        
-        return findings
-    
-    def _parse_alerts_response(self, response: str) -> Dict[str, Any]:
-        """Parse alerts response with enhanced structure."""
-        if not response:
-            return {"alerts": [], "recommendations": "No alerts generated"}
-        
-        alerts = []
-        
-        # Try to extract structured alerts
-        try:
-            # Look for JSON arrays in response
-            json_matches = re.findall(r'\[.*?\]', response, re.DOTALL)
-            for json_match in json_matches:
-                try:
-                    parsed = json.loads(json_match)
-                    if isinstance(parsed, list):
-                        for item in parsed:
-                            if isinstance(item, dict) and 'message' in item:
-                                alerts.append(self._validate_alert(item))
-                except:
-                    continue
-        except:
-            pass
-        
-        # Generate default alerts if none found
-        if not alerts:
-            alerts = [
-                {
-                    "type": "recommendation",
-                    "message": "Monitor key market indicators and price levels for entry signals.",
-                    "priority": "medium"
-                },
-                {
-                    "type": "risk_monitoring",
-                    "message": "Set appropriate stop-loss levels to manage downside risk.",
-                    "priority": "medium"
-                }
-            ]
-        
-        return {
-            "alerts": alerts[:5],  # Limit to 5 alerts
-            "recommendations": response[:1000] + "..." if len(response) > 1000 else response
-        }
-    
-    def _validate_alert(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate and clean alert item."""
-        valid_types = ["recommendation", "warning", "trigger", "risk_monitoring", "entry_signal"]
-        valid_priorities = ["high", "medium", "low"]
-        
-        return {
-            "type": item.get("type", "recommendation") if item.get("type") in valid_types else "recommendation",
-            "message": str(item.get("message", ""))[:500],
-            "priority": item.get("priority", "medium") if item.get("priority") in valid_priorities else "medium"
-        }
 
-# Global orchestrator instance with enhanced initialization
+# Global orchestrator instance
 try:
     orchestrator = TradeSageOrchestrator()
-    print("🚀 Enhanced TradeSage ADK Orchestrator with Model Integration ready for processing")
+    print("🚀 TradeSage ADK Orchestrator with Fixed Tool Handling ready")
 except Exception as e:
-    print(f"❌ Failed to initialize Enhanced TradeSage Orchestrator: {str(e)}")
+    print(f"❌ Failed to initialize TradeSage Orchestrator: {str(e)}")
     orchestrator = None
