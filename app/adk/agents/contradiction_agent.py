@@ -179,8 +179,7 @@ class IntelligentContradictionProcessor:
                     "quote": quote,
                     "reason": reason,
                     "source": source,
-                    "strength": strength,
-                    "processing": "ai_enhanced"
+                    "strength": strength
                 }
             else:
                 return None
@@ -210,8 +209,7 @@ class IntelligentContradictionProcessor:
                 "quote": quote,
                 "reason": reason,
                 "source": "AI Analysis",
-                "strength": "Medium",
-                "processing": "ai_text_extracted"
+                "strength": "Medium"
             }
         
         return None
@@ -290,8 +288,7 @@ class IntelligentContradictionProcessor:
                         "quote": clean_quote,
                         "reason": clean_reason,
                         "source": source,
-                        "strength": strength,
-                        "processing": "ai_generated"
+                        "strength": strength
                     })
         
         return contradictions
