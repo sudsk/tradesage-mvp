@@ -49,6 +49,23 @@ TradeSage AI System
     └── Cloud Deployment: Cloud Run
 ```
 
+## 📁 File Structure
+
+```
+your-project/
+├── deploy_to_agent_engine.py     # Main deployment script
+├── manage_agent.py               # Management utilities
+├── setup_agent_engine.sh         # Initial setup
+├── requirements_agent_engine.txt # Agent Engine requirements
+├── deploy.env                    # Environment variables
+├── deployment_info.json          # Deployment details (auto-generated)
+└── app/
+    └── adk/
+        ├── main_agent.py          # Main agent (auto-generated)
+        ├── orchestrator.py        # Your orchestrator
+        └── agents/                # Your agent files
+```
+
 ## 💻 Local Development
 
 ### Backend Setup
