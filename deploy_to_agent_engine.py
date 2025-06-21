@@ -1,4 +1,4 @@
-# deploy_to_agent_engine.py - Simple deployment script for TradeSage AI
+# deploy_to_agent_engine.py - Fixed for proper module import
 
 import os
 import sys
@@ -29,18 +29,24 @@ def main():
     # Check required files exist
     required_files = [
         "requirements.txt",
-        "app/adk/orchestrator.py"
+        "app/adk/orchestrator.py",
+        "app/__init__.py",
+        "app/adk/__init__.py"
     ]
     
     for file_path in required_files:
         if not Path(file_path).exists():
-            print(f"❌ Error: Required file {file_path} not found")
-            sys.exit(1)
+            if file_path.endswith("__init__.py"):
+                print(f"📝 Creating missing {file_path}...")
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+                Path(file_path).touch()
+            else:
+                print(f"❌ Error: Required file {file_path} not found")
+                sys.exit(1)
     
     # Check if main_agent.py exists, create if needed
-    if not Path("app/adk/main_agent.py").exists():
-        print("📝 Creating Agent Engine wrapper (main_agent.py)...")
-        print("   This is separate from your existing main.py file")
+    if not Path("main_agent.py").exists():
+        print("📝 Creating Agent Engine wrapper (main_agent.py) in root directory...")
         create_main_agent_file()
     
     print("✅ All required files found")
@@ -64,8 +70,7 @@ def main():
         )
         
         print("🤖 Loading TradeSage agent...")
-        # Import our agent
-        sys.path.append("app/adk")
+        # Import our agent from root directory
         from main_agent import tradesage_agent
         
         print("📊 Creating ADK App wrapper...")
@@ -94,16 +99,22 @@ def main():
         remote_app = agent_engines.create(
             agent_engine=tradesage_agent,
             requirements=[
-                "google-cloud-aiplatform[adk,agent_engines]",
+                "google-cloud-aiplatform[adk,agent_engines]>=1.72.0",
                 "google-adk>=1.0.0",
+                "vertexai>=1.72.0",
                 "fastapi>=0.104.1",
-                "uvicorn>=0.24.0",
+                "uvicorn[standard]>=0.24.0",
                 "sqlalchemy>=2.0.23",
                 "pg8000>=1.30.3",
+                "google-cloud-sql-connector>=1.10.0",
                 "requests>=2.31.0",
                 "beautifulsoup4>=4.12.2",
-                "pandas>=2.1.3",
-                "numpy>=1.24.3"
+                "google-cloud-secret-manager>=2.18.0",
+                "google-cloud-logging>=3.8.0",
+                "pydantic>=2.5.0",
+                "python-multipart>=0.0.6",
+                "python-dotenv>=1.0.0",
+                "python-dateutil>=2.8.2"
             ]
         )
         
@@ -158,17 +169,33 @@ def main():
         sys.exit(1)
 
 def create_main_agent_file():
-    """Create the Agent Engine wrapper file (separate from existing main.py)"""
+    """Create the Agent Engine wrapper file in root directory (not in app/adk)"""
     
-    agent_code = '''# app/adk/main_agent.py - Agent Engine wrapper for TradeSage AI
-# NOTE: This is separate from your main.py FastAPI application
-# This file is specifically for Agent Engine deployment
+    agent_code = '''# main_agent.py - Agent Engine wrapper for TradeSage AI (Root Level)
+# NOTE: This file is in the root directory for proper import by Agent Engine
 
+import sys
+import os
+from pathlib import Path
+
+# Add the current directory to Python path for imports
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
+
+# Now import from app modules
 from google.adk.agents import Agent
-from app.adk.orchestrator import orchestrator
-from app.adk.tools import market_data_search, news_search
 import asyncio
 import json
+
+# Import TradeSage orchestrator
+try:
+    from app.adk.orchestrator import orchestrator
+    from app.adk.tools import market_data_search, news_search
+except ImportError as e:
+    print(f"Import error: {e}")
+    print("Current working directory:", os.getcwd())
+    print("Python path:", sys.path)
+    raise
 
 async def process_trading_hypothesis(hypothesis: str, mode: str = "analyze") -> dict:
     """
@@ -256,12 +283,11 @@ if __name__ == "__main__":
     print("   NOTE: This wraps your existing orchestrator system")
 '''
     
-    # Write the agent wrapper file
-    with open("app/adk/main_agent.py", "w") as f:
+    # Write the agent wrapper file in root directory
+    with open("main_agent.py", "w") as f:
         f.write(agent_code)
     
-    print("✅ Created app/adk/main_agent.py (Agent Engine wrapper)")
-    print("   Your existing main.py file remains unchanged")
+    print("✅ Created main_agent.py in root directory (for Agent Engine import)")
 
 if __name__ == "__main__":
     main()
