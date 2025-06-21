@@ -13,9 +13,6 @@ DATABASE_NAME = os.getenv("DATABASE_NAME", "tradesage_db")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-# For local development, you can still use SQLite
-USE_CLOUD_SQL = os.getenv("USE_CLOUD_SQL", "true").lower() == "true"
-
 def create_cloud_sql_engine():
     """Create engine for Cloud SQL PostgreSQL"""
     connector = Connector()
@@ -40,27 +37,11 @@ def create_cloud_sql_engine():
     
     return engine, connector
 
-def create_sqlite_engine():
-    """Create engine for SQLite (local development)"""
-    DATABASE_URL = "sqlite:///./tradesage.db"
-    
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        echo=False
-    )
-    
-    return engine, None
-
-# Create the appropriate engine
-if USE_CLOUD_SQL and DB_PASSWORD:
+# Connect to database
+if DB_PASSWORD:
     print("🐘 Connecting to Cloud SQL PostgreSQL...")
     engine, connector = create_cloud_sql_engine()
     print("✅ Cloud SQL connection established")
-else:
-    print("🗃️ Using SQLite for local development...")
-    engine, connector = create_sqlite_engine()
-    print("✅ SQLite connection established")
 
 # Create session maker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
