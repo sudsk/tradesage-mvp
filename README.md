@@ -46,6 +46,24 @@ TradeSage AI System
 └── Frontend (React/Next.js)
     ├── Local Development: npm run dev
     ├── Cloud Deployment: Cloud Run
+    └── UI Components: TradingDashboard with enhanced features
+```
+
+## 📁 File Structure
+
+```
+your-project/
+├── deploy_to_agent_engine.py     # Main deployment script
+├── manage_agent.py               # Management utilities
+├── setup_agent_engine.sh         # Initial setup
+├── requirements.txt              # Unified dependencies
+├── deploy.env                    # Environment variables
+├── deployment_info.json          # Deployment details (auto-generated)
+└── app/
+    └── adk/
+        ├── main_agent.py          # Main agent (auto-generated)
+        ├── orchestrator.py        # Your orchestrator
+        └── agents/                # Your agent files
 ```
 
 ## 🗃️ Database Setup
@@ -87,7 +105,6 @@ Update your `.env` file with database settings:
 
 ```bash
 # Cloud SQL PostgreSQL Configuration
-USE_CLOUD_SQL=true
 PROJECT_ID=tradesage-mvp
 REGION=us-central1
 INSTANCE_NAME=tradesage-db
@@ -97,23 +114,6 @@ DB_PASSWORD=your-secure-password
 ```
 
 **Note:** Cloud SQL is used for both local development and cloud deployment to ensure environment consistency.
-
-## 📁 File Structure
-
-```
-your-project/
-├── deploy_to_agent_engine.py     # Main deployment script
-├── manage_agent.py               # Management utilities
-├── setup_agent_engine.sh         # Initial setup
-├── requirements.txt              # Unified dependencies
-├── deploy.env                    # Environment variables
-├── deployment_info.json          # Deployment details (auto-generated)
-└── app/
-    └── adk/
-        ├── main_agent.py          # Main agent (auto-generated)
-        ├── orchestrator.py        # Your orchestrator
-        └── agents/                # Your agent files
-```
 
 ## 💻 Local Development
 
@@ -331,77 +331,6 @@ gcloud run services describe $SERVICE_NAME \
   --region $REGION \
   --format 'value(status.url)'
 ```
-
-    └── UI Components: TradingDashboard with enhanced features
-```
-
-## 🗃️ Database Setup
-
-The database setup is required for both local development and cloud deployment. TradeSage supports both SQLite (local) and Cloud SQL PostgreSQL (cloud).
-
-### Cloud SQL Setup (Recommended)
-
-```bash
-# 1. Create Cloud SQL instance
-export PROJECT_ID="tradesage-mvp"
-export REGION="us-central1"
-export DB_PASSWORD="your-secure-password"
-
-gcloud sql instances create tradesage-db \
-  --database-version=POSTGRES_13 \
-  --tier=db-f1-micro \
-  --region=$REGION
-
-# 2. Create database
-gcloud sql databases create tradesage \
-  --instance=tradesage-db
-
-# 3. Create user
-gcloud sql users create tradesage-user \
-  --instance=tradesage-db \
-  --password=$DB_PASSWORD
-
-# 4. Initialize tables and extensions
-python scripts/init_cloudsql_tables.py
-
-# 5. Add demo data (optional)
-python scripts/init_cloudsql_demo.py
-```
-
-### Environment Configuration
-
-Update your `.env` file with database settings:
-
-```bash
-# For Cloud SQL (recommended for both local and cloud)
-USE_CLOUD_SQL=true
-PROJECT_ID=tradesage-mvp
-REGION=us-central1
-INSTANCE_NAME=tradesage-db
-DATABASE_NAME=tradesage
-DB_USER=tradesage-user
-DB_PASSWORD=your-secure-password
-
-# For local SQLite (development only)
-# USE_CLOUD_SQL=false
-```
-
-### Local SQLite Alternative
-
-If you prefer SQLite for local development only:
-
-```bash
-# Set environment
-export USE_CLOUD_SQL=false
-
-# Initialize local database
-python scripts/manage_db.py reset
-
-# Add demo data
-python scripts/init_db.py
-```
-
-**Note:** Cloud SQL is recommended even for local development as it ensures consistency between environments.
 
 ## 📊 Monitoring & Management
 
