@@ -58,7 +58,6 @@ export REGION=${REGION:-us-central1}
 export STAGING_BUCKET=$STAGING_BUCKET
 export GOOGLE_CLOUD_PROJECT=$PROJECT_ID
 export GOOGLE_CLOUD_LOCATION=${REGION:-us-central1}
-export USE_CLOUD_SQL=true
 EOF
 
 echo "✅ Setup complete!"
