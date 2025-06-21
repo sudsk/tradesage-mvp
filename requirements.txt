@@ -1,25 +1,47 @@
 # requirements_complete.txt - Complete requirements with database dependencies
 yfinance==0.2.33
 sec-api==1.0.17
+
+# Web scraping
+beautifulsoup4>=4.12.2
+
+# Google Cloud basics
+google-auth>=2.25.0
 google-cloud-secret-manager>=2.20.0
+
+# Web Framework
 fastapi>=0.68.0
 uvicorn>=0.15.0
+
+# HTTP requests
 requests>=2.26.0
+
+# Data processing
 pandas>=1.3.0
 numpy>=1.21.0
-sqlalchemy>=1.4.0
-aiosqlite>=0.17.0
 
-# Additional dependencies for the agents
-langchain-google-vertexai~=2.0.7
-langchain~=0.3.14
-langgraph~=0.2.63
-langchain-community~=0.3.17
-langchain-openai~=0.3.5
+# Database
+sqlalchemy>=1.4.0
+
 opentelemetry-exporter-gcp-trace~=1.9.0
-langchain-core~=0.3.9
 traceloop-sdk~=0.38.7
+
+# Core Google ADK and AI Platform
 google-cloud-logging~=3.11.4
 google-cloud-aiplatform[agent-engines,evaluation]>=1.90.0,<2.0.0
 google-adk>=1.0.0
+vertexai>=1.72.0
+
+# Environment and config
+python-dotenv>=1.0.0
 pydantic>=2.0.0
+
+# Development essentials
+pytest>=7.4.0
+python-multipart>=0.0.6
+
+# Date/time
+python-dateutil>=2.8.2
+
+# Security
+cryptography>=41.0.0
