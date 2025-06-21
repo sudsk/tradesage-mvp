@@ -5,13 +5,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
 from enum import Enum
-import os
 
 Base = declarative_base()
 
-# Use JSONB for PostgreSQL, JSON for others
-USE_CLOUD_SQL = os.getenv("USE_CLOUD_SQL", "true").lower() == "true"
-JsonType = JSONB if USE_CLOUD_SQL else JSON
+# Always use JSONB for PostgreSQL
+JsonType = JSONB
 
 class HypothesisStatus(str, Enum):
     ACTIVE = "active"
