@@ -2,19 +2,18 @@
 yfinance==0.2.33
 sec-api==1.0.17
 
-# Web scraping
-beautifulsoup4>=4.12.2
-
 # Google Cloud basics
 google-auth>=2.25.0
 google-cloud-secret-manager>=2.20.0
+google-cloud-logging>=3.8.0
 
 # Web Framework
 fastapi>=0.68.0
 uvicorn>=0.15.0
 
-# HTTP requests
+# HTTP requests and Web Scraping
 requests>=2.26.0
+beautifulsoup4>=4.12.2
 
 # Data processing
 pandas>=1.3.0
@@ -22,9 +21,8 @@ numpy>=1.21.0
 
 # Database
 sqlalchemy>=1.4.0
-
-opentelemetry-exporter-gcp-trace~=1.9.0
-traceloop-sdk~=0.38.7
+pg8000>=1.30.3
+google-cloud-sql-connector>=1.10.0
 
 # Core Google ADK and AI Platform
 google-cloud-logging~=3.11.4
@@ -32,13 +30,16 @@ google-cloud-aiplatform[agent-engines,evaluation]>=1.90.0,<2.0.0
 google-adk>=1.0.0
 vertexai>=1.72.0
 
-# Environment and config
+# Environment and Utilities
 python-dotenv>=1.0.0
-pydantic>=2.0.0
+python-dateutil>=2.8.2
 
-# Development essentials
-pytest>=7.4.0
+# FastAPI Dependencies (required by FastAPI framework)
+pydantic>=2.0.0
 python-multipart>=0.0.6
+
+# Development and Testing
+pytest>=7.4.0
 
 # Date/time
 python-dateutil>=2.8.2
