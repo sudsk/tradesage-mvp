@@ -15,6 +15,9 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 def create_cloud_sql_engine():
     """Create engine for Cloud SQL PostgreSQL"""
+    if not DB_PASSWORD:
+        raise ValueError("DB_PASSWORD environment variable must be set for Cloud SQL connection")
+      
     connector = Connector()
     
     def getconn():
@@ -37,11 +40,10 @@ def create_cloud_sql_engine():
     
     return engine, connector
 
-# Connect to database
-if DB_PASSWORD:
-    print("🐘 Connecting to Cloud SQL PostgreSQL...")
-    engine, connector = create_cloud_sql_engine()
-    print("✅ Cloud SQL connection established")
+# Create the Cloud SQL engine
+print("🐘 Connecting to Cloud SQL PostgreSQL...")
+engine, connector = create_cloud_sql_engine()
+print("✅ Cloud SQL connection established")
 
 # Create session maker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
