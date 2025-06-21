@@ -59,9 +59,9 @@ your-project/
 ├── requirements.txt              # Unified dependencies
 ├── deploy.env                    # Environment variables
 ├── deployment_info.json          # Deployment details (auto-generated)
+├── main_agent.py                 # ← Agent Engine entry point (root level)
 └── app/
     └── adk/
-        ├── main_agent.py          # Main agent (auto-generated)
         ├── orchestrator.py        # Your orchestrator
         └── agents/                # Your agent files
 ```
