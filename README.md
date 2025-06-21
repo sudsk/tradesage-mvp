@@ -6,10 +6,10 @@ A comprehensive guide for developing, testing, and deploying TradeSage AI system
 
 - [Quick Start](#-quick-start)
 - [Architecture Overview](#-architecture-overview)
+- [Database Setup](#-database-setup)
 - [Local Development](#-local-development)
 - [Local Testing](#-local-testing)
 - [Cloud Deployment](#-cloud-deployment)
-- [Production Deployment](#-production-deployment)
 - [Monitoring & Management](#-monitoring--management)
 - [Troubleshooting](#-troubleshooting)
 
@@ -45,9 +45,56 @@ TradeSage AI System
 │   └── Core Logic: orchestrator.py + 6 specialized agents
 └── Frontend (React/Next.js)
     ├── Local Development: npm run dev
-    ├── Production Build: npm run build
-    └── Cloud Deployment: Cloud Run
+    ├── Cloud Deployment: Cloud Run
+## 🗃️ Database Setup
+
+TradeSage uses **Cloud SQL PostgreSQL** for all environments (local development and cloud deployment). This ensures consistency across environments and leverages advanced PostgreSQL features.
+
+### Cloud SQL Setup
+
+```bash
+# 1. Create Cloud SQL instance
+export PROJECT_ID="tradesage-mvp"
+export REGION="us-central1"
+export DB_PASSWORD="your-secure-password"
+
+gcloud sql instances create tradesage-db \
+  --database-version=POSTGRES_13 \
+  --tier=db-f1-micro \
+  --region=$REGION
+
+# 2. Create database
+gcloud sql databases create tradesage \
+  --instance=tradesage-db
+
+# 3. Create user
+gcloud sql users create tradesage-user \
+  --instance=tradesage-db \
+  --password=$DB_PASSWORD
+
+# 4. Initialize tables and extensions
+python scripts/init_cloudsql_tables.py
+
+# 5. Add demo data (optional)
+python scripts/init_cloudsql_demo.py
 ```
+
+### Environment Configuration
+
+Update your `.env` file with database settings:
+
+```bash
+# Cloud SQL PostgreSQL Configuration
+USE_CLOUD_SQL=true
+PROJECT_ID=tradesage-mvp
+REGION=us-central1
+INSTANCE_NAME=tradesage-db
+DATABASE_NAME=tradesage
+DB_USER=tradesage-user
+DB_PASSWORD=your-secure-password
+```
+
+**Note:** Cloud SQL is used for both local development and cloud deployment to ensure environment consistency.
 
 ## 📁 File Structure
 
@@ -56,7 +103,7 @@ your-project/
 ├── deploy_to_agent_engine.py     # Main deployment script
 ├── manage_agent.py               # Management utilities
 ├── setup_agent_engine.sh         # Initial setup
-├── requirements_agent_engine.txt # Agent Engine requirements
+├── requirements.txt              # Unified dependencies
 ├── deploy.env                    # Environment variables
 ├── deployment_info.json          # Deployment details (auto-generated)
 └── app/
@@ -75,15 +122,17 @@ your-project/
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# 2. Install dependencies
+# 2. Install dependencies from unified requirements
 pip install -r requirements.txt
 
-# 3. Set up environment variables
+# 3. Set up environment variables (after database setup)
 export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 export ALPHA_VANTAGE_API_KEY="your-api-key"
 export NEWS_API_KEY="your-news-api-key"
+
+# Database should already be configured from Database Setup section above
 
 # 4. Start the backend server
 python app/adk/main.py &
@@ -95,7 +144,7 @@ The backend will be available at `http://localhost:8000`
 
 ```bash
 # 1. Navigate to frontend directory
-cd frontend  # or wherever your React app is located
+cd frontend
 
 # 2. Install dependencies
 npm install
@@ -183,7 +232,7 @@ npm run test:e2e
 ```bash
 # 1. Set up Google Cloud environment
 export PROJECT_ID="tradesage-mvp"
-export REGION="us-central1"
+export REGION="us-central1"  
 export STAGING_BUCKET="gs://tradesage-staging"
 
 # 2. Run setup script
@@ -281,76 +330,21 @@ gcloud run services describe $SERVICE_NAME \
   --format 'value(status.url)'
 ```
 
-## 🏭 Production Deployment
-
-### Environment Configuration
-
-Create production environment files:
-
-**`.env.production`:**
-```bash
-# Production Backend Config
-GOOGLE_CLOUD_PROJECT=tradesage-mvp
-GOOGLE_CLOUD_LOCATION=us-central1
-GOOGLE_GENAI_USE_VERTEXAI=True
-USE_CLOUD_SQL=true
-DB_PASSWORD=your-secure-password
-ALPHA_VANTAGE_API_KEY=your-api-key
-NEWS_API_KEY=your-news-api-key
-ENVIRONMENT=production
-LOG_LEVEL=INFO
+    └── UI Components: TradingDashboard with enhanced features
 ```
 
-**`frontend/.env.production`:**
-```bash
-# Production Frontend Config
-REACT_APP_API_URL=https://your-agent-engine-url
-REACT_APP_ENVIRONMENT=production
-REACT_APP_ANALYTICS_ID=your-analytics-id
-```
+## 🗃️ Database Setup
 
-### Complete Production Deployment
+The database setup is required for both local development and cloud deployment. TradeSage supports both SQLite (local) and Cloud SQL PostgreSQL (cloud).
 
-```bash
-# 1. Deploy backend to Agent Engine
-export $(cat .env.production | xargs)
-python deploy_to_agent_engine.py
-
-# 2. Get Agent Engine URL
-AGENT_ENGINE_URL=$(python -c "
-import json
-with open('deployment_info.json') as f:
-    print(json.load(f)['resource_name'])
-")
-
-# 3. Update frontend nginx config with actual Agent Engine URL
-sed -i "s/YOUR_AGENT_ENGINE_URL/$AGENT_ENGINE_URL/g" frontend/nginx.conf
-
-# 4. Deploy frontend to Cloud Run
-cd frontend
-gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-frontend
-gcloud run deploy tradesage-frontend \
-  --image gcr.io/$PROJECT_ID/tradesage-frontend \
-  --platform managed \
-  --region $REGION \
-  --allow-unauthenticated \
-  --port 8080 \
-  --memory 2Gi \
-  --cpu 2 \
-  --max-instances 10
-
-# 5. Set up custom domain (optional)
-gcloud run domain-mappings create \
-  --service tradesage-frontend \
-  --domain your-domain.com \
-  --platform managed \
-  --region $REGION
-```
-
-### Database Setup (Production)
+### Cloud SQL Setup (Recommended)
 
 ```bash
 # 1. Create Cloud SQL instance
+export PROJECT_ID="tradesage-mvp"
+export REGION="us-central1"
+export DB_PASSWORD="your-secure-password"
+
 gcloud sql instances create tradesage-db \
   --database-version=POSTGRES_13 \
   --tier=db-f1-micro \
@@ -365,8 +359,47 @@ gcloud sql users create tradesage-user \
   --instance=tradesage-db \
   --password=$DB_PASSWORD
 
-# 4. Update connection settings in your app
+# 4. Initialize tables and extensions
+python scripts/init_cloudsql_tables.py
+
+# 5. Add demo data (optional)
+python scripts/init_cloudsql_demo.py
 ```
+
+### Environment Configuration
+
+Update your `.env` file with database settings:
+
+```bash
+# For Cloud SQL (recommended for both local and cloud)
+USE_CLOUD_SQL=true
+PROJECT_ID=tradesage-mvp
+REGION=us-central1
+INSTANCE_NAME=tradesage-db
+DATABASE_NAME=tradesage
+DB_USER=tradesage-user
+DB_PASSWORD=your-secure-password
+
+# For local SQLite (development only)
+# USE_CLOUD_SQL=false
+```
+
+### Local SQLite Alternative
+
+If you prefer SQLite for local development only:
+
+```bash
+# Set environment
+export USE_CLOUD_SQL=false
+
+# Initialize local database
+python scripts/manage_db.py reset
+
+# Add demo data
+python scripts/init_db.py
+```
+
+**Note:** Cloud SQL is recommended even for local development as it ensures consistency between environments.
 
 ## 📊 Monitoring & Management
 
@@ -443,7 +476,7 @@ git add .
 git commit -m "feat: new feature"
 git push
 
-# 3. Deploy to staging/production
+# 3. Deploy to cloud
 python deploy_to_agent_engine.py
 cd frontend && gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-frontend
 ```
@@ -554,7 +587,7 @@ gcloud run services update tradesage-frontend \
 # Quick start local development
 source venv/bin/activate && python app/adk/main.py & cd frontend && npm start &
 
-# Quick deploy to production
+# Quick deploy to cloud
 python deploy_to_agent_engine.py && cd frontend && gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-frontend
 
 # Quick health check
@@ -573,6 +606,6 @@ gcloud logs read "resource.type=cloud_run_revision" --limit 10
 
 ---
 
-**🎉 Your TradeSage AI system is now ready for both local development and cloud production!**
+**🎉 Your TradeSage AI system is now ready for both local development and cloud deployment!**
 
 For support, check the troubleshooting section or refer to the Google Cloud documentation links above.
