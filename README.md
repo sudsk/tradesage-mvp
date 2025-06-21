@@ -46,6 +46,8 @@ TradeSage AI System
 └── Frontend (React/Next.js)
     ├── Local Development: npm run dev
     ├── Cloud Deployment: Cloud Run
+```
+
 ## 🗃️ Database Setup
 
 TradeSage uses **Cloud SQL PostgreSQL** for all environments (local development and cloud deployment). This ensures consistency across environments and leverages advanced PostgreSQL features.
