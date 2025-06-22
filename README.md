@@ -1,4 +1,4 @@
-# TradeSage AI - Complete Deployment Guide
+# TradeSage AI 
 
 A comprehensive guide for developing, testing, and deploying TradeSage AI system locally and on Google Cloud.
 
