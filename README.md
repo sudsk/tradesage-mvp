@@ -396,17 +396,32 @@ Create `frontend/Dockerfile`:
 FROM node:18-alpine AS builder
 
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
 
+# Copy package files
+COPY package*.json ./
+
+# Clean install dependencies (fix sync issues)
+RUN npm install
+
+# Copy source code
 COPY . .
+
+# Build the React app
 RUN npm run build
 
+# Production stage
 FROM nginx:alpine
+
+# Copy built app from builder stage
 COPY --from=builder /app/build /usr/share/nginx/html
+
+# Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Expose port
 EXPOSE 8080
+
+# Start nginx
 CMD ["nginx", "-g", "daemon off;"]
 ```
 
