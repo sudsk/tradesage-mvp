@@ -410,6 +410,38 @@ EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
 ```
 
+Create `frontend/nginx.conf`:
+
+```nginx
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    server {
+        listen 8080;
+        server_name localhost;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api {
+            proxy_pass https://YOUR_BACKEND_CLOUD_RUN_URL;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
+```
+
 Deploy frontend to Cloud Run:
 
 ```bash
