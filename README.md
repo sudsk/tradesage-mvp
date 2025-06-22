@@ -442,16 +442,18 @@ http {
         root /usr/share/nginx/html;
         index index.html;
 
-        # API routes MUST come BEFORE the catch-all route
-        location /api/ {
-            proxy_pass https://tradesage-ai-546497447681.us-central1.run.app/;
-            proxy_set_header Host $host;
+        # More specific API proxy configuration
+        location ^~ /api/ {
+            proxy_pass YOUR-BACKEND-URL/;
+            proxy_set_header Host YOUR-BACKEND-URL-HOSTNAME;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Accept application/json;
+            proxy_redirect off;
         }
 
-        # Catch-all for React app (this should be LAST)
+        # React app (all other routes)
         location / {
             try_files $uri $uri/ /index.html;
         }
