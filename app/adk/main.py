@@ -252,4 +252,4 @@ async def mark_alert_read_adk(alert_id: int, db: Session = Depends(get_db)):
         
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)  # Different port from LangGraph version
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
