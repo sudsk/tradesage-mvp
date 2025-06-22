@@ -38,5 +38,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Run the ADK application
-CMD ["python", "app/adk/main.py"]
+# Run the ADK application with proper host binding for Cloud Run
+CMD ["uvicorn", "app.adk.main:app", "--host", "0.0.0.0", "--port", "8080"]
