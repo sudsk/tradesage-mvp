@@ -308,7 +308,7 @@ gcloud run deploy tradesage-ai \
   --memory 4Gi \
   --cpu 2 \
   --timeout 900 \
-  --set-env-vars "PROJECT_ID=$PROJECT_ID,REGION=$REGION,DB_PASSWORD=your-db-password,INSTANCE_NAME=tradesage-db,DATABASE_NAME=tradesage,DB_USER=tradesage-user,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True"
+  --set-env-vars "PROJECT_ID=$PROJECT_ID,REGION=$REGION,DB_PASSWORD=your-db-password,INSTANCE_NAME=tradesage-db,DATABASE_NAME=tradesage,DB_USER=tradesage-user,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True,ALPHA_VANTAGE_API_KEY=your-alpha-vantage-key,FMP_API_KEY=your-fmp-key"
 
 # 3. Get the service URL
 SERVICE_URL=$(gcloud run services describe tradesage-ai --region $REGION --format 'value(status.url)')
@@ -352,6 +352,10 @@ spec:
           value: us-central1
         - name: GOOGLE_GENAI_USE_VERTEXAI
           value: "True"
+        - name: ALPHA_VANTAGE_API_KEY
+          value: your-alpha-vantage-key
+        - name: FMP_API_KEY
+          value: your-fmp-key
         resources:
           limits:
             memory: 4Gi
