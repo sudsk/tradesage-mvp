@@ -1,0 +1,69 @@
+# .dockerignore for TradeSage AI
+
+# Git files
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Environment files
+.env
+.env.*
+deploy.env
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv
+.pytest_cache/
+.coverage
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Deployment artifacts
+deployment_info.json
+cloudbuild.yaml
+docker-compose*.yml
+
+# Node.js (if any frontend)
+node_modules/
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+build/
+dist/
+target/
+
+# Local development
+.local
+local_*
