@@ -23,6 +23,7 @@ gcloud run deploy tradesage-ai \
     --allow-unauthenticated \
     --port 8080 \
     --memory 2Gi
+    --set-env-vars "PROJECT_ID=$PROJECT_ID,REGION=$REGION,DB_PASSWORD=$DB_PASSWORD,INSTANCE_NAME=$INSTANCE_NAME,DATABASE_NAME=$DATABASE_NAME,DB_USER=$DB_USER,ALPHA_VANTAGE_API_KEY=$ALPHA_VANTAGE_API_KEY,FMP_API_KEY=$FMP_API_KEY,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True"
 
 echo "✅ Done! Getting URL..."
 gcloud run services describe tradesage-ai --region $REGION --format 'value(status.url)'
