@@ -6,6 +6,7 @@ A comprehensive guide for developing, testing, and deploying TradeSage AI system
 
 - [Quick Start](#-quick-start)
 - [Architecture Overview](#-architecture-overview)
+- [Repository Structure](#-repository-structure)
 - [Database Setup](#-database-setup)
 - [Local Development](#-local-development)
 - [Local Testing](#-local-testing)
@@ -17,11 +18,11 @@ A comprehensive guide for developing, testing, and deploying TradeSage AI system
 
 ### Prerequisites
 
-- **Python 3.9-3.12** installed
+- **Python 3.10-3.12** installed
 - **Node.js 16+** and npm installed
 - **Google Cloud CLI** installed and configured
 - **Google Cloud Project** with billing enabled
-- **Docker** (optional, for containerized deployments)
+- **Docker** (for Cloud Run deployments)
 
 ### Environment Setup
 
@@ -39,9 +40,10 @@ cp .env.example .env
 
 ```
 TradeSage AI System
-├── Backend (Python/FastAPI)
+├── Backend (Python/FastAPI with ADK)
 │   ├── Local Development: app/adk/main.py
-│   ├── Cloud Deployment: Agent Engine via main_agent.py
+│   ├── Cloud Deployment Option 1: Cloud Run (Recommended)
+│   ├── Cloud Deployment Option 2: Agent Engine
 │   └── Core Logic: orchestrator.py + 6 specialized agents
 └── Frontend (React/Next.js)
     ├── Local Development: npm run dev
@@ -49,21 +51,68 @@ TradeSage AI System
     └── UI Components: TradingDashboard with enhanced features
 ```
 
-## 📁 File Structure
+## 📁 Repository Structure
 
 ```
-your-project/
-├── deploy_to_agent_engine.py     # Main deployment script
-├── manage_agent.py               # Management utilities
-├── setup_agent_engine.sh         # Initial setup
-├── requirements.txt              # Unified dependencies
-├── deploy.env                    # Environment variables
-├── deployment_info.json          # Deployment details (auto-generated)
-├── main_agent.py                 # ← Agent Engine entry point (root level)
-└── app/
-    └── adk/
-        ├── orchestrator.py        # Your orchestrator
-        └── agents/                # Your agent files
+tradesage-ai/
+├── Dockerfile                    # Cloud Run deployment configuration
+├── .dockerignore                 # Docker build exclusions
+├── requirements.txt              # Python dependencies
+├── .env.example                  # Environment variables template
+├── .gitignore                    # Git exclusions
+├── README.md                     # This file
+├── main_agent.py                 # Agent Engine entry point (optional)
+├── quick_deploy.sh               # Quick Cloud Run deployment script
+├── service.yaml                  # Cloud Run service configuration
+├── app/
+│   ├── __init__.py
+│   ├── adk/
+│   │   ├── __init__.py
+│   │   ├── main.py               # FastAPI application entry point
+│   │   ├── orchestrator.py       # Multi-agent orchestrator
+│   │   ├── agents/               # Specialized agents
+│   │   │   ├── __init__.py
+│   │   │   ├── hypothesis_agent.py
+│   │   │   ├── context_agent.py
+│   │   │   ├── research_agent.py
+│   │   │   ├── contradiction_agent.py
+│   │   │   ├── synthesis_agent.py
+│   │   │   └── alert_agent.py
+│   │   ├── tools.py              # ADK tools and utilities
+│   │   └── response_handler.py   # Response processing
+│   ├── database/
+│   │   ├── __init__.py
+│   │   ├── database.py           # Database connection and setup
+│   │   ├── models.py             # SQLAlchemy models
+│   │   └── crud.py               # Database operations
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── market_data_service.py
+│   │   └── hybrid_rag_service.py
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   ├── market_data_tool.py
+│   │   └── news_data_tool.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── text_processor.py
+│   └── config/
+│       ├── __init__.py
+│       └── adk_config.py
+├── frontend/                     # React/Next.js frontend
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── Dockerfile               # Frontend Cloud Run deployment
+├── scripts/
+│   ├── __init__.py
+│   ├── init_cloudsql_tables.py
+│   ├── init_cloudsql_demo.py
+│   └── manage_db.py
+└── deployment/                   # Deployment utilities
+    ├── deploy_to_agent_engine.py # Agent Engine deployment (optional)
+    ├── manage_agent.py           # Agent management utilities
+    └── setup_agent_engine.sh     # Agent Engine setup (optional)
 ```
 
 ## 🗃️ Database Setup
@@ -111,6 +160,15 @@ INSTANCE_NAME=tradesage-db
 DATABASE_NAME=tradesage
 DB_USER=tradesage-user
 DB_PASSWORD=your-secure-password
+
+# API Keys (optional for basic functionality)
+ALPHA_VANTAGE_API_KEY=your-api-key
+FMP_API_KEY=your-fmp-key
+
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT=tradesage-mvp
+GOOGLE_CLOUD_LOCATION=us-central1
+GOOGLE_GENAI_USE_VERTEXAI=True
 ```
 
 **Note:** Cloud SQL is used for both local development and cloud deployment to ensure environment consistency.
@@ -132,15 +190,15 @@ export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
 export GOOGLE_GENAI_USE_VERTEXAI="True"
 export ALPHA_VANTAGE_API_KEY="your-api-key"
-export NEWS_API_KEY="your-news-api-key"
+export FMP_API_KEY="your-fmp-key"
 
 # Database should already be configured from Database Setup section above
 
 # 4. Start the backend server
-python app/adk/main.py &
+python app/adk/main.py
 ```
 
-The backend will be available at `http://localhost:8000`
+The backend will be available at `http://localhost:8080`
 
 ### Frontend Setup
 
@@ -152,10 +210,10 @@ cd frontend
 npm install
 
 # 3. Set up environment variables
-echo "REACT_APP_API_URL=http://localhost:8000" > .env.local
+echo "REACT_APP_API_URL=http://localhost:8080" > .env.local
 
 # 4. Start the development server
-npm start &
+npm start
 ```
 
 The frontend will be available at `http://localhost:3000`
@@ -169,7 +227,7 @@ The frontend will be available at `http://localhost:3000`
 cd tradesage-ai
 source venv/bin/activate
 python app/adk/main.py &
-echo "Backend started on http://localhost:8000"
+echo "Backend started on http://localhost:8080"
 
 # 2. Start frontend (in terminal 2)
 cd tradesage-ai/frontend
@@ -185,17 +243,15 @@ echo "Frontend started on http://localhost:3000"
 
 ```bash
 # Test health endpoint
-curl http://localhost:8000/health
+curl http://localhost:8080/health
 
 # Test hypothesis analysis
-curl -X POST http://localhost:8000/api/analyze \
+curl -X POST http://localhost:8080/process \
   -H "Content-Type: application/json" \
   -d '{"hypothesis": "Tesla will reach $300 by end of 2025", "mode": "analyze"}'
 
-# Test with streaming
-curl -X POST http://localhost:8000/api/analyze/stream \
-  -H "Content-Type: application/json" \
-  -d '{"hypothesis": "Bitcoin will reach $100k by 2025"}'
+# Test dashboard data
+curl http://localhost:8080/dashboard
 ```
 
 ### Frontend Testing
@@ -213,23 +269,102 @@ npm run build
 npm run start  # Test production build locally
 ```
 
-### Integration Testing
-
-```bash
-# Test complete workflow
-cd tradesage-ai
-
-# Run backend tests
-python -m pytest tests/ -v
-
-# Run end-to-end tests (if configured)
-cd frontend
-npm run test:e2e
-```
-
 ## ☁️ Cloud Deployment
 
-### Backend: Agent Engine Deployment
+### Backend: Cloud Run Deployment (Recommended)
+
+Cloud Run provides a serverless, fully managed platform that's ideal for the TradeSage AI backend with automatic scaling and pay-per-use pricing.
+
+#### Quick Cloud Run Deployment
+
+```bash
+# 1. Set up environment variables
+export PROJECT_ID="tradesage-mvp"
+export REGION="us-central1"
+
+# 2. Set up gcloud
+gcloud config set project $PROJECT_ID
+
+# 3. Enable required APIs
+gcloud services enable cloudbuild.googleapis.com run.googleapis.com containerregistry.googleapis.com
+
+# 4. Quick deployment using the provided script
+chmod +x quick_deploy.sh
+./quick_deploy.sh
+```
+
+#### Manual Cloud Run Deployment
+
+```bash
+# 1. Build the container image
+gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-ai .
+
+# 2. Deploy to Cloud Run with environment variables
+gcloud run deploy tradesage-ai \
+  --image gcr.io/$PROJECT_ID/tradesage-ai \
+  --region $REGION \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 900 \
+  --set-env-vars "PROJECT_ID=$PROJECT_ID,REGION=$REGION,DB_PASSWORD=your-db-password,INSTANCE_NAME=tradesage-db,DATABASE_NAME=tradesage,DB_USER=tradesage-user,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=$REGION,GOOGLE_GENAI_USE_VERTEXAI=True"
+
+# 3. Get the service URL
+SERVICE_URL=$(gcloud run services describe tradesage-ai --region $REGION --format 'value(status.url)')
+echo "🔗 Service URL: $SERVICE_URL"
+```
+
+#### Setting Environment Variables in Cloud Run
+
+You can set environment variables using YAML configuration:
+
+```bash
+# Create service.yaml with environment variables
+cat > service.yaml << 'EOF'
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: tradesage-ai
+spec:
+  template:
+    spec:
+      containers:
+      - image: gcr.io/tradesage-mvp/tradesage-ai
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PROJECT_ID
+          value: tradesage-mvp
+        - name: REGION
+          value: us-central1
+        - name: DB_PASSWORD
+          value: your-secure-password
+        - name: INSTANCE_NAME
+          value: tradesage-db
+        - name: DATABASE_NAME
+          value: tradesage
+        - name: DB_USER
+          value: tradesage-user
+        - name: GOOGLE_CLOUD_PROJECT
+          value: tradesage-mvp
+        - name: GOOGLE_CLOUD_LOCATION
+          value: us-central1
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "True"
+        resources:
+          limits:
+            memory: 4Gi
+            cpu: 2
+EOF
+
+# Apply the configuration
+gcloud run services replace service.yaml --region $REGION
+```
+
+### Backend: Agent Engine Deployment (Alternative)
+
+For advanced use cases requiring the Agent Engine platform:
 
 ```bash
 # 1. Set up Google Cloud environment
@@ -238,15 +373,14 @@ export REGION="us-central1"
 export STAGING_BUCKET="gs://tradesage-staging"
 
 # 2. Run setup script
-chmod +x setup_agent_engine.sh
-./setup_agent_engine.sh
+chmod +x deployment/setup_agent_engine.sh
+./deployment/setup_agent_engine.sh
 
 # 3. Deploy to Agent Engine
-source deploy.env
-python deploy_to_agent_engine.py
+python deployment/deploy_to_agent_engine.py
 
 # 4. Test deployed agent
-python manage_agent.py test -m "Apple will reach $220 by Q2 2025"
+python deployment/manage_agent.py test -m "Apple will reach $220 by Q2 2025"
 ```
 
 ### Frontend: Cloud Run Deployment
@@ -270,36 +404,6 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
-```
-
-Create `frontend/nginx.conf`:
-
-```nginx
-events {
-    worker_connections 1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    server {
-        listen 8080;
-        server_name localhost;
-        root /usr/share/nginx/html;
-        index index.html;
-
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-
-        location /api {
-            proxy_pass https://YOUR_AGENT_ENGINE_URL;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-    }
-}
 ```
 
 Deploy frontend to Cloud Run:
@@ -334,40 +438,35 @@ gcloud run services describe $SERVICE_NAME \
 
 ## 📊 Monitoring & Management
 
-### Backend Monitoring
+### Cloud Run Backend Monitoring
 
 ```bash
-# Check Agent Engine status
-python manage_agent.py info
+# View service status
+gcloud run services describe tradesage-ai --region $REGION
 
 # View logs
-gcloud logging read "resource.type=gce_instance AND resource.labels.instance_name:tradesage" \
+gcloud logs read "resource.type=cloud_run_revision AND resource.labels.service_name=tradesage-ai" \
   --limit 50 \
   --format="table(timestamp,severity,textPayload)"
 
-# Performance metrics
-gcloud monitoring metrics list --filter="tradesage"
-```
-
-### Frontend Monitoring
-
-```bash
-# Cloud Run logs
-gcloud logs read "resource.type=cloud_run_revision AND resource.labels.service_name=tradesage-frontend" \
-  --limit 50
-
-# Performance metrics
-gcloud run services describe tradesage-frontend \
+# Monitor performance metrics
+gcloud run services describe tradesage-ai \
   --region $REGION \
   --format="yaml(status.traffic,status.url)"
+
+# Update service configuration
+gcloud run services update tradesage-ai \
+  --region $REGION \
+  --memory 8Gi \
+  --cpu 4
 ```
 
 ### Google Cloud Console
 
-1. **Agent Engine**: https://console.cloud.google.com/vertex-ai/agent-engine
-2. **Cloud Run**: https://console.cloud.google.com/run
-3. **Cloud SQL**: https://console.cloud.google.com/sql
-4. **Monitoring**: https://console.cloud.google.com/monitoring
+1. **Cloud Run**: https://console.cloud.google.com/run
+2. **Cloud SQL**: https://console.cloud.google.com/sql
+3. **Monitoring**: https://console.cloud.google.com/monitoring
+4. **Logs**: https://console.cloud.google.com/logs
 
 ## 🛠️ Development Workflow
 
@@ -386,7 +485,7 @@ npm start &
 # Edit files in your IDE
 
 # 3. Test changes
-curl -X POST http://localhost:8000/api/analyze \
+curl -X POST http://localhost:8080/process \
   -H "Content-Type: application/json" \
   -d '{"hypothesis": "Test hypothesis"}'
 
@@ -395,7 +494,7 @@ python -m pytest tests/
 cd frontend && npm test
 ```
 
-### Deployment Workflow
+### Cloud Deployment Workflow
 
 ```bash
 # 1. Test locally
@@ -407,8 +506,10 @@ git add .
 git commit -m "feat: new feature"
 git push
 
-# 3. Deploy to cloud
-python deploy_to_agent_engine.py
+# 3. Deploy backend to Cloud Run
+./quick_deploy.sh
+
+# 4. Deploy frontend to Cloud Run
 cd frontend && gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-frontend
 ```
 
@@ -419,7 +520,7 @@ cd frontend && gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-frontend
 **❌ Backend not starting:**
 ```bash
 # Check Python version
-python --version  # Should be 3.9-3.12
+python --version  # Should be 3.10-3.12
 
 # Check dependencies
 pip install -r requirements.txt
@@ -431,86 +532,83 @@ echo $GOOGLE_CLOUD_PROJECT
 python app/adk/main.py  # Run without & to see logs
 ```
 
-**❌ Frontend not connecting:**
-```bash
-# Check backend is running
-curl http://localhost:8000/health
-
-# Check environment variables
-cat frontend/.env.local
-
-# Check CORS settings in backend
-```
-
 **❌ Database connection issues:**
 ```bash
-# Check Cloud SQL proxy
+# Check Cloud SQL instance status
+gcloud sql instances describe tradesage-db
+
+# Test connection with cloud sql proxy
 cloud_sql_proxy -instances=$PROJECT_ID:$REGION:tradesage-db=tcp:5432
 
 # Test connection
 psql -h localhost -U tradesage-user -d tradesage
 ```
 
-### Common Cloud Issues
+### Common Cloud Run Issues
 
-**❌ Agent Engine deployment fails:**
+**❌ Container fails to start:**
 ```bash
-# Check APIs are enabled
-gcloud services list --enabled | grep aiplatform
+# Check container logs
+gcloud logs read "resource.type=cloud_run_revision AND resource.labels.service_name=tradesage-ai" --limit=50
 
-# Check staging bucket permissions
-gsutil ls $STAGING_BUCKET
+# Check environment variables
+gcloud run services describe tradesage-ai --region $REGION --format="value(spec.template.spec.template.spec.containers[0].env[].name,spec.template.spec.template.spec.containers[0].env[].value)"
 
-# Check deployment logs
-python deploy_to_agent_engine.py 2>&1 | tee deploy.log
+# Test container locally
+docker build -t tradesage-test .
+docker run -p 8080:8080 -e PROJECT_ID=tradesage-mvp tradesage-test
 ```
 
-**❌ Cloud Run deployment fails:**
+**❌ Service not responding:**
 ```bash
-# Check Docker build
-docker build -t test-image frontend/
+# Check service status
+gcloud run services describe tradesage-ai --region $REGION
 
-# Check Cloud Build permissions
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
-  --role="roles/run.developer"
+# Increase timeout and resources
+gcloud run services update tradesage-ai \
+  --region $REGION \
+  --timeout 900 \
+  --memory 4Gi \
+  --cpu 2
+```
 
-# Check service logs
-gcloud run services logs read tradesage-frontend --region $REGION
+**❌ Environment variables not set:**
+```bash
+# Update environment variables using YAML
+gcloud run services replace service.yaml --region $REGION
+
+# Or update individual variables
+gcloud run services update tradesage-ai \
+  --region $REGION \
+  --set-env-vars PROJECT_ID=tradesage-mvp,DB_PASSWORD=your-password
 ```
 
 ### Performance Issues
 
-**🐌 Slow Agent Engine responses:**
-```bash
-# Check Agent Engine metrics
-python manage_agent.py info
-
-# Monitor request latency
-gcloud monitoring metrics list --filter="agent_engine"
-
-# Scale up if needed (automatic with Agent Engine)
-```
-
-**🐌 Slow frontend loading:**
+**🐌 Slow Cloud Run responses:**
 ```bash
 # Check Cloud Run metrics
-gcloud run services describe tradesage-frontend --region $REGION
+gcloud run services describe tradesage-ai --region $REGION
 
 # Increase resources
-gcloud run services update tradesage-frontend \
-  --memory 2Gi \
-  --cpu 2 \
+gcloud run services update tradesage-ai \
+  --memory 8Gi \
+  --cpu 4 \
   --region $REGION
+
+# Enable CPU always allocated
+gcloud run services update tradesage-ai \
+  --region $REGION \
+  --cpu-throttling
 ```
 
 ## 📚 Additional Resources
 
 ### Documentation
+- [Cloud Run Documentation](https://cloud.google.com/run/docs)
 - [Agent Development Kit](https://google.github.io/adk-docs/)
-- [Agent Engine](https://cloud.google.com/vertex-ai/docs/agent-engine)
-- [Cloud Run](https://cloud.google.com/run/docs)
-- [Cloud SQL](https://cloud.google.com/sql/docs)
+- [Cloud SQL Documentation](https://cloud.google.com/sql/docs)
+- [Container Registry](https://cloud.google.com/container-registry/docs)
 
 ### Sample Commands Reference
 
@@ -518,25 +616,25 @@ gcloud run services update tradesage-frontend \
 # Quick start local development
 source venv/bin/activate && python app/adk/main.py & cd frontend && npm start &
 
-# Quick deploy to cloud
-python deploy_to_agent_engine.py && cd frontend && gcloud builds submit --tag gcr.io/$PROJECT_ID/tradesage-frontend
+# Quick deploy backend to Cloud Run
+./quick_deploy.sh
 
 # Quick health check
-curl http://localhost:8000/health && python manage_agent.py test
+curl https://your-cloud-run-url/health
 
 # Quick logs check
-gcloud logs read "resource.type=cloud_run_revision" --limit 10
+gcloud logs read "resource.type=cloud_run_revision AND resource.labels.service_name=tradesage-ai" --limit 10
 ```
 
 ### Cost Optimization
 
-- **Agent Engine**: Pay per request, scales to zero
-- **Cloud Run**: Pay per request, scales to zero
-- **Cloud SQL**: Consider smaller instance for development
-- **Storage**: Use lifecycle policies for staging bucket
+- **Cloud Run**: Pay per request, scales to zero when not in use
+- **Cloud SQL**: Consider smaller instance for development (db-f1-micro)
+- **Container Registry**: Clean up old images regularly
+- **Logs**: Set retention policies to manage storage costs
 
 ---
 
-**🎉 Your TradeSage AI system is now ready for both local development and cloud deployment!**
+**🎉 Your TradeSage AI system is now ready for both local development and cloud deployment with Cloud Run!**
 
 For support, check the troubleshooting section or refer to the Google Cloud documentation links above.
