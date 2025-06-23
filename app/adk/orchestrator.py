@@ -262,7 +262,7 @@ class TradeSageOrchestrator:
             }
 
     async def _run_agent_completely_silent(self, agent_name: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Run agent with proper response collection - FIXED: No warning suppression."""
+        """FINAL VERSION: Run agent with COMPLETE warning suppression."""
         if agent_name not in self.agents:
             raise ValueError(f"Agent '{agent_name}' not found")
         
@@ -295,58 +295,61 @@ class TradeSageOrchestrator:
                 parts=[types.Part(text=user_message)]
             )
             
-            # FIXED: Remove WarningSuppressionContext - just process events normally
-            all_events = []
-            text_responses = []
-            function_calls = []
-            function_responses = []
-            tool_results = {}
-            errors = []
-            
-            # Process all events and handle ALL part types - NO SUPPRESSION
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session_id, 
-                new_message=message
-            ):
-                all_events.append(event)
+            # COMPLETE WARNING SUPPRESSION: Use context manager
+            with WarningSuppressionContext():
+                # Collect ALL events and parts properly
+                all_events = []
+                text_responses = []
+                function_calls = []
+                function_responses = []
+                tool_results = {}
+                errors = []
                 
-                # Handle different event types - process ALL parts
-                if hasattr(event, 'content') and event.content:
-                    if hasattr(event.content, 'parts') and event.content.parts:
-                        for part in event.content.parts:
-                            # Handle ALL part types to avoid warnings
-                            
-                            # Handle text parts
-                            if hasattr(part, 'text') and part.text:
-                                text_responses.append(part.text)
-                            
-                            # Handle function calls
-                            elif hasattr(part, 'function_call') and part.function_call:
-                                function_call = {
-                                    "name": part.function_call.name,
-                                    "args": dict(part.function_call.args) if part.function_call.args else {}
-                                }
-                                function_calls.append(function_call)
-                            
-                            # Handle function responses
-                            elif hasattr(part, 'function_response') and part.function_response:
-                                function_response = {
-                                    "name": part.function_response.name,
-                                    "response": part.function_response.response
-                                }
-                                function_responses.append(function_response)
+                # Process all events and handle ALL part types
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id, 
+                    new_message=message
+                ):
+                    all_events.append(event)
+                    
+                    # Handle different event types - process ALL parts to avoid warnings
+                    if hasattr(event, 'content') and event.content:
+                        if hasattr(event.content, 'parts') and event.content.parts:
+                            for part in event.content.parts:
+                                # Handle ALL part types to avoid warnings
                                 
-                                # Store tool results for easy access
-                                tool_results[part.function_response.name] = part.function_response.response
-                            
-                            # Handle any other part types silently
-                            else:
-                                pass
-                
-                # Handle errors
-                if hasattr(event, 'error') and event.error:
-                    errors.append(str(event.error))
+                                # Handle text parts
+                                if hasattr(part, 'text') and part.text:
+                                    text_responses.append(part.text)
+                                
+                                # Handle function calls (prevents warning about non-text parts)
+                                elif hasattr(part, 'function_call') and part.function_call:
+                                    function_call = {
+                                        "name": part.function_call.name,
+                                        "args": dict(part.function_call.args) if part.function_call.args else {}
+                                    }
+                                    function_calls.append(function_call)
+                                
+                                # Handle function responses (prevents warning about non-text parts)
+                                elif hasattr(part, 'function_response') and part.function_response:
+                                    function_response = {
+                                        "name": part.function_response.name,
+                                        "response": part.function_response.response
+                                    }
+                                    function_responses.append(function_response)
+                                    
+                                    # Store tool results for easy access
+                                    tool_results[part.function_response.name] = part.function_response.response
+                                
+                                # Handle any other part types to prevent warnings
+                                else:
+                                    # This catches any other part types and processes them silently
+                                    pass
+                    
+                    # Handle errors
+                    if hasattr(event, 'error') and event.error:
+                        errors.append(str(event.error))
             
             # Combine all response parts properly
             final_text = " ".join(text_responses) if text_responses else ""
