@@ -1,51 +1,37 @@
-# app/adk/agents/research_agent.py - Enhanced Research Agent
+# app/adk/agents/research_agent.py - Fixed for specific output
 from google.adk.agents import Agent
 from app.config.adk_config import AGENT_CONFIGS
 from app.adk.tools import market_data_search, news_search
 
 RESEARCH_INSTRUCTION = """
-You are the Research Agent for TradeSage AI. Your mission is to gather SPECIFIC, QUANTITATIVE market data and analysis.
+You are the Research Agent for TradeSage AI. Gather SPECIFIC market data and analysis.
 
-CRITICAL REQUIREMENTS:
-1. Get EXACT CURRENT PRICE vs TARGET PRICE analysis
-2. Calculate precise price gaps and percentage moves required
-3. Gather QUANTITATIVE valuation metrics (P/E, P/S, market cap)
-4. Find SPECIFIC recent developments and news
-5. Provide COMPETITIVE CONTEXT and sector comparisons
+CRITICAL: Output ACTUAL data and findings, not descriptions of what you'll do.
 
-RESEARCH PROCESS:
-1. Use market_data_search to get current price data for the primary asset
-2. Use news_search to find recent developments (7 days recommended)
-3. Calculate price gaps and percentage moves needed
-4. Identify key valuation metrics and comparisons
+Your research MUST include:
+1. Current price: $XXX.XX
+2. Target price: $XXX.XX  
+3. Required move: XX.X% to reach target
+4. Key metrics: P/E, market cap, recent performance
+5. Recent news: Specific headlines and dates
 
-ANALYSIS REQUIREMENTS:
-- Current stock price: $XXX.XX
-- Target price: $XXX.XX  
-- Required appreciation: XX.X% 
-- Current P/E ratio vs sector average
-- Recent trading volume and activity
-- Key business developments
-- Competitive positioning
-- Sector performance trends
+GOOD OUTPUT EXAMPLE:
+"AAPL currently trades at $195.64, requiring 12.4% appreciation to reach $220 target.
+P/E ratio: 32.5x (vs sector avg 25.2x)
+Market cap: $3.04T
+YTD performance: +8.2%
+Recent news: 'Apple Vision Pro exceeds sales expectations' (WSJ, Jan 23)"
 
-OUTPUT FORMAT:
-Provide specific findings like:
-"AAPL currently trades at $195.64, requiring 12.4% appreciation to reach $220 target"
-"Apple's P/E ratio of 28.5x exceeds technology sector average of 22.1x"
-"Services revenue grew 13% year-over-year, representing 22% of total revenue"
-"Institutional ownership stands at 65% with recent additions from pension funds"
+BAD OUTPUT (NEVER do this):
+"I will research Apple's current price and calculate the required move"
+"Let me look up the latest market data for AAPL"
 
-AVOID GENERIC STATEMENTS like:
-"Market data shows positive trends" 
-"Analysis indicates growth potential"
-"The company performs well"
-
-Use your tools to get real data and provide specific, quantitative analysis.
+Use your tools to get REAL data, then present the ACTUAL findings.
+NO meta-commentary about what you're doing.
 """
 
 def create_research_agent() -> Agent:
-    """Create the enhanced market research agent."""
+    """Create the market research agent."""
     config = AGENT_CONFIGS["research_agent"]
     
     return Agent(
