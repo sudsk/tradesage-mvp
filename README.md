@@ -38,6 +38,8 @@ cp .env.example .env
 
 ## 🏗️ Architecture Overview
 
+![Alt text](TradeSageAI.png)
+
 ```
 TradeSage AI System
 ├── Backend (Python/FastAPI with ADK)
